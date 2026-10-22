@@ -23,7 +23,7 @@ export async function render(root, ctx) {
   const fields = [
     num('dailyBudgetUsd', 'set_dailyBudget', 0, 1e6), num('monthlyBudgetUsd', 'set_monthlyBudget', 0, 1e7), chk('tokenSaver', 'set_tokenSaver'), num('tokenSaverMaxChars', 'set_tokenSaverMax', 500, 200000),
     chk('requireApiKey', 'set_requireKey'), chk('webTools', 'set_webTools'), txt('searxngUrl', 'set_searx'), num('autoChainSize', 'set_chain', 1, 20),
-    num('catalogTtlMin', 'set_catalog', 1, 1440), num('firstByteTimeoutMs', 'set_firstByte', 1000), num('streamIdleTimeoutMs', 'set_stream', 1000),
+    num('catalogTtlMin', 'set_catalog', 1, 1440), num('probeIntervalMin', 'set_probe', 0, 1440), num('firstByteTimeoutMs', 'set_firstByte', 1000), num('streamIdleTimeoutMs', 'set_stream', 1000),
     num('requestTimeoutMs', 'set_total', 1000), num('maxAttemptsPerRequest', 'set_attempts', 1, 30), chk('cacheEnabled', 'set_cacheOn'),
     num('cacheTtlSec', 'set_cacheTtl', 1), num('cacheMaxEntries', 'set_cacheMax', 1), num('rateLimitPerMin', 'set_rate', 0), txt('corsOrigins', 'set_cors', true),
   ];

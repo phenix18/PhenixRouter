@@ -11,6 +11,8 @@ import { BRAND, VERSION, resolveDataDir } from '../src/config.js';
 import { start } from '../src/server.js';
 import { Gateway } from '../src/gateway.js';
 import { PROVIDERS } from '../src/providers/registry.js';
+import { manageService } from '../src/core/service.js';
+import { runDoctor } from '../src/core/doctor.js';
 
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const c = (code, s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
@@ -36,6 +38,8 @@ ${bold('Utilisation')}
   phenixrouter usage                 Requêtes, tokens et coût estimé (24 h / 7 j)
   phenixrouter import <config.json>  Importe les comptes d'un config.json « phenixRouter v3 » (Python)
   phenixrouter setup <outil> [--key K] [--write|--remove]   Configure un outil : claude codex opencode cline droid copilot | openai continue aider gemini | list
+  phenixrouter service install|uninstall|status   Service permanent (systemd / launchd / tâche Windows, sans admin)
+  phenixrouter doctor [--port N]     Diagnostic de l'environnement (Node, port, clés, réseau)
   phenixrouter reset-password [mdp]  Définit un nouveau mot de passe du tableau de bord
   phenixrouter --version | --help
 
@@ -242,6 +246,22 @@ function cmdSetup(flags, tool = 'claude') {
   throw new Error(`Outil inconnu. Choix : ${[...Object.keys(TOOLS), 'openai', 'continue', 'aider', 'gemini'].join(' | ')} (ou « setup list »)`);
 }
 
+async function cmdService(flags, sub) {
+  if (!['install', 'uninstall', 'status'].includes(sub)) throw new Error('Utilisation : phenixrouter service install|uninstall|status [--port N] [--host ADDR] [--data-dir DIR]');
+  const r = manageService(sub, { opts: { port: flags.port, host: flags.host, dataDir: flags.dataDir } });
+  if (sub === 'status') { console.log(`Service ${r.platform} : ${bold(r.state)}${r.file ? dim(`  (${r.file})`) : ''}`); return; }
+  console.log(`${green('✓')} Service ${sub === 'install' ? 'installé et démarré' : 'retiré'} (${r.platform})${r.file ? dim(` — ${r.file}`) : ''}`);
+  for (const n of r.notes) console.log(dim(`  ${n}`));
+}
+
+async function cmdDoctor(flags) {
+  const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
+  const rows = await runDoctor({ dataDir: resolveDataDir(flags.dataDir), port, host: flags.host ?? '127.0.0.1' });
+  const mark = { ok: green('✓'), warn: orange('!'), fail: red('✗') };
+  for (const r of rows) console.log(`  ${mark[r.status]} ${bold(r.name.padEnd(22))} ${r.detail}`);
+  if (rows.some((r) => r.status === 'fail')) process.exitCode = 1;
+}
+
 async function main() {
   const { _: args, flags } = parseArgs(process.argv.slice(2));
   if (flags.help) { console.log(HELP); return; }
@@ -263,6 +283,8 @@ async function main() {
     case 'usage': await cmdUsage(flags); break;
     case 'import': await cmdImport(flags, sub); break;
     case 'setup': cmdSetup(flags, sub); break;
+    case 'service': await cmdService(flags, sub); break;
+    case 'doctor': await cmdDoctor(flags); break;
     case 'keys':
       if (sub === 'list') {
         await mutating(flags, (gw) => {

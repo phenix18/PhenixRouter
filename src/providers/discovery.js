@@ -14,7 +14,7 @@ function headersFor(provider, key) {
 
 async function getJson(url, headers, timeoutMs, fetchFn = fetch) {
   const res = await fetchFn(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
   return res.json();
 }
 

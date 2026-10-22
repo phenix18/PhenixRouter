@@ -15,6 +15,7 @@ Tout-en-un, zéro dépendance, tableau de bord intégré, exécutable autonome.
 - **Réseau** : proxys sortants par connexion ou en pool (échec fermé), tunnel cloudflared/tailscale, config automatique des outils clients (`phenixrouter setup`).
 - **Économe** : *Token Saver* (compresse les gros résultats d'outils), cache, budgets.
 - **Traçable (REA)** : chaque échange = paire *REQUEST/COMPLETION* (+ `cost_usd` si payant) dans un grand livre append-only ([docs/REA.md](docs/REA.md)).
+- **Surveillé** : sonde de santé des clés (sans coût), alertes au journal, démarrage automatique en service, `phenixrouter doctor`.
 - **Sûr** : clés chiffrées (AES‑256‑GCM), mot de passe aléatoire, écoute locale par défaut, CSP stricte, garde SSRF.
 
 Comparaison honnête avec FlagshipRouter et le paquet v3, y compris ce qui manque : [docs/COMPARAISON.md](docs/COMPARAISON.md).
@@ -77,6 +78,8 @@ phenixrouter start [--port N] [--host ADDR] [--data-dir DIR] [--no-browser]
 phenixrouter list | models [--all] | status | usage | providers
 phenixrouter keys list|create <nom>|revoke <id>
 phenixrouter import <config.json>        phenixrouter setup claude|codex|openai
+phenixrouter service install|uninstall|status   # démarrage automatique (sans droits admin)
+phenixrouter doctor                             # diagnostic de l'environnement
 phenixrouter reset-password
 ```
 
@@ -93,7 +96,7 @@ Les exécutables ne sont pas signés : Windows SmartScreen / macOS Gatekeeper de
 ## Développement
 
 ```bash
-npm test      # 76 tests, node:test, aucun réseau requis (faux fournisseur)
+npm test      # 86 tests, node:test, aucun réseau requis (faux fournisseur)
 ```
 
 Documentation : [Architecture](docs/ARCHITECTURE.md) · [Modèle REA](docs/REA.md) · [Fournisseurs](docs/PROVIDERS.md) · [Comparaison](docs/COMPARAISON.md) · [Changelog](CHANGELOG.md).

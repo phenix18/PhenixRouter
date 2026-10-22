@@ -253,3 +253,7 @@ h2.group { margin: 18px 0 2px; font-size: 14px; color: var(--muted); text-transf
 .codeblock pre { margin: 0; padding: 10px 44px 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; font-size: 12px; white-space: pre; }
 .codeblock .btn { position: absolute; top: 6px; right: 6px; }
 details > summary { cursor: pointer; padding: 4px 0; color: var(--muted); }
+
+/* Mise en route */
+.steps { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .5rem; }
+.steps li.done a { color: var(--muted, inherit); text-decoration: line-through; }

@@ -121,6 +121,8 @@ export async function start({ port, host = '127.0.0.1', dataDir } = {}) {
   gw.catalog.refresh().catch(() => {});
   const timer = setInterval(() => { if (gw.catalog.isStale()) gw.catalog.refresh().catch(() => {}); }, 5 * 60_000);
   timer.unref?.();
+  gw.monitor.start();
+  setTimeout(() => { gw.monitor.sweep().catch(() => {}); }, 20_000).unref?.();
 
   return {
     server, gw, creds, port: actualPort, url: `http://${shown}:${actualPort}`,

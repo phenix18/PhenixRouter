@@ -9,6 +9,7 @@ import {
 import { DEFAULT_SETTINGS, resolveDataDir, clamp } from './config.js';
 import { Ledger } from './rea/ledger.js';
 import { Health } from './providers/health.js';
+import { Monitor } from './core/probe.js';
 import { ResponseCache } from './core/cache.js';
 import { RateLimiter } from './core/ratelimit.js';
 import { PROVIDERS, getProvider } from './providers/registry.js';
@@ -51,6 +52,7 @@ const SETTING_TYPES = {
     }
     return out;
   },
+  probeIntervalMin: (v) => clamp(Math.round(Number(v) || 0), 0, 1440),
   tokenSaver: Boolean,
   tokenSaverMaxChars: (v) => clamp(Math.round(Number(v) || 6000), 500, 200000),
   proxyTestUrl: (v) => (typeof v === 'string' && /^https?:\/\//.test(v) ? v : 'https://www.cloudflare.com/cdn-cgi/trace'),
@@ -85,6 +87,7 @@ export class Gateway extends EventEmitter {
     this.logs = [];
     this.rr = new Map();
     this.tunnel = new Tunnel();
+    this.monitor = new Monitor(this);
     this.proxyHealth = new Map();
     this.proxyRr = 0;
     this.catalog = new Catalog(this);
@@ -101,6 +104,7 @@ export class Gateway extends EventEmitter {
   _applySettings() {
     const s = this.settings();
     this.cache.configure({ max: s.cacheMaxEntries, ttlMs: s.cacheTtlSec * 1000 });
+    if (this.monitor?.started) this.monitor.configure();
   }
 
   updateSettings(patch) {
@@ -251,6 +255,7 @@ export class Gateway extends EventEmitter {
       usableNow: this.health.available(c.id),
       cooldownLeftMs: this.health.cooldownLeftMs(c.id),
       health: this.health.get(c.id),
+      probe: this.monitor?.get(c.id) ?? null,
       today: this.ledger.dailyCount(c.id),
     };
   }
@@ -543,6 +548,7 @@ export class Gateway extends EventEmitter {
   }
 
   close() {
+    this.monitor.stop();
     this.tunnel.stop();
     this.store.flush();
   }

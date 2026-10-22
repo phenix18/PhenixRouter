@@ -2,6 +2,14 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.3.0 — Exploitation : sonde, service, diagnostic
+- **Sonde de santé des clés** (réglage `probeIntervalMin`, 30 min par défaut, 0 = off) : vérifie en arrière-plan les clés via la découverte de modèles (aucun appel de génération, donc aucun coût) ; clé révoquée → mise en pause + alerte au journal ; clé rétablie → réactivée. Bouton « Vérifier maintenant » et état par connexion dans « Fournisseurs » (`GET /api/probe`, `POST /api/probe/run`).
+- **Service permanent sans droits admin** : `phenixrouter service install|uninstall|status` (systemd utilisateur, launchd, tâche planifiée Windows).
+- **Diagnostic** : `phenixrouter doctor` (Node, dossier de données, port, clés, tunnels, réseau).
+- **Mise en route** : carte d'étapes détectées automatiquement sur la vue d'ensemble.
+- Le test de connexion est factorisé dans `core/probe.js` ; les erreurs de découverte conservent le code HTTP.
+- 86 tests (10 nouveaux).
+
 ## 1.2.0 — Parité FlagshipRouter (contrat d'API compatible)
 - **Proxys sortants** : pool, proxy dédié par connexion, rotation, test ; tunnel HTTP CONNECT sans dépendance ; **échec fermé** (jamais de sortie directe si le proxy demandé est indisponible) ; identifiants masqués.
 - **Images multi-fournisseurs** (Pollinations, compatibles OpenAI, Stability, fal.ai, BFL/FLUX) ; **vidéo asynchrone** `/v1/videos/generations` + suivi, identifiants **signés HMAC** (pas de SSRF).

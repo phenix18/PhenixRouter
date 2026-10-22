@@ -5,11 +5,25 @@ on:
   pull_request:
 jobs:
   test:
-    runs-on: ubuntu-latest
     strategy:
-      matrix: { node: [20, 22] }
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [20, 22]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "${{ matrix.node }}" }
+      - name: Syntaxe
+        shell: bash
+        run: for f in $(git ls-files '*.js' '*.mjs'); do node --check "$f"; done
       - run: npm test
+      - name: Démarrage et /health
+        shell: bash
+        run: |
+          node bin/phenixrouter.js start --no-browser --port 20190 --data-dir "$RUNNER_TEMP/phx" &
+          for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS http://127.0.0.1:20190/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:20190/health | grep '"ok":true'
+      - name: Paquet npm
+        run: npm pack --dry-run

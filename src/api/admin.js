@@ -3,8 +3,7 @@
 import { VERSION, BRAND } from '../config.js';
 import { httpError } from '../gateway.js';
 import { PROVIDERS, getProvider } from '../providers/registry.js';
-import { discoverModels, staticModels } from '../providers/discovery.js';
-import { probeConnection } from '../core/dispatch.js';
+import { testConnection } from '../core/probe.js';
 import { runChat } from '../core/chat.js';
 import { importLegacyConfig } from '../core/legacy.js';
 import { toolPaths, applyTool, removeTool, manualSnippets, TOOLS } from '../core/clitools.js';
@@ -19,30 +18,6 @@ const PUBLIC = new Set(['POST /api/login', 'GET /api/session', 'POST /api/logout
 function cookie(req, value, maxAge) {
   const secure = req.socket?.encrypted || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   return `phx_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`;
-}
-
-async function testConnection(gw, conn) {
-  const p = getProvider(conn.provider);
-  const t0 = Date.now();
-  let error = null;
-  let discovered = null;
-  if (p.discovery && p.discovery !== 'static') {
-    try {
-      discovered = await discoverModels(p, conn, gw.keyOf(conn), { fetchFn: gw.fetchFor(conn) });
-    } catch (e) {
-      error = e?.cause?.code ?? e?.message ?? String(e);
-    }
-  }
-  if (discovered?.length) {
-    gw.health.success(conn.id, Date.now() - t0);
-    gw.catalog.refresh({ force: true }).catch(() => {});
-    return { ok: true, models: discovered.length, ms: Date.now() - t0 };
-  }
-  const model = staticModels(p).find((m) => m.tags.includes('chat')) ?? discovered?.[0];
-  if (!model) return { ok: false, message: error ?? 'aucun modèle connu pour tester', ms: Date.now() - t0 };
-  const r = await probeConnection(gw, conn, model.model);
-  if (!r.ok && error && !r.message) r.message = error;
-  return r;
 }
 
 function providerRows(gw) {
@@ -60,6 +35,20 @@ function providerRows(gw) {
   }));
 }
 
+/** Étapes de mise en route : détectées côté serveur, rien à cocher à la main. */
+function onboarding(gw, rows) {
+  const keyed = gw.connections().some((c) => !c.implicit && c._key && c.enabled !== false);
+  const ready = rows.some((r) => r.status === 'ready' && !r.keyless) || gw.catalog.list().some((m) => m.status === 'ready');
+  const served = gw.ledger.summary({ sinceMs: 30 * 24 * 3600 * 1000 }).total.ok > 0;
+  const steps = [
+    { id: 'key', done: keyed, link: '#/providers' },
+    { id: 'models', done: keyed && ready, link: '#/models' },
+    { id: 'request', done: served, link: '#/playground' },
+    { id: 'tools', done: false, link: '#/access', optional: true },
+  ];
+  return { steps, complete: steps.filter((x) => !x.optional).every((x) => x.done) };
+}
+
 function overview(gw) {
   const rows = providerRows(gw);
   const catalog = gw.catalog.list();
@@ -75,6 +64,7 @@ function overview(gw) {
       combos: gw.db.combos.length,
       apiKeys: gw.db.apiKeys.length,
     },
+    onboarding: onboarding(gw, rows),
     spend: gw.spend(),
     costMode: gw.settings().costMode,
     last24h: gw.ledger.summary({ sinceMs: 24 * 3600 * 1000 }),
@@ -177,6 +167,8 @@ export async function handleAdmin(gw, req, res, url) {
     }
 
     /* ── Modèles ── */
+    if (route === 'GET /api/probe') { sendJson(res, 200, gw.monitor.status()); return; }
+    if (route === 'POST /api/probe/run') { const results = await gw.monitor.sweep({ force: true }); sendJson(res, 200, { ok: true, count: results.length, results }); return; }
     if (route === 'GET /api/models') {
       if (url.searchParams.get('refresh') === '1') await gw.catalog.refresh({ force: true });
       else if (gw.catalog.isStale()) gw.catalog.refresh().catch(() => {});

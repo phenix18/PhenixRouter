@@ -46,7 +46,9 @@ function connRow(c, reload) {
         `${c.today ?? 0} ${t('prov_today')}${c.dailyLimit ? ` / ${c.dailyLimit}` : ''}`,
         ` · P${c.priority ?? 5}`, c.proxyId ? ` · ${t('prov_via')}` : '',
         c.cooldownLeftMs > 0 ? ` · ${t('prov_cooldown')} ${Math.ceil(c.cooldownLeftMs / 1000)}s` : '',
-        c.health?.lastOkAt ? ` · OK ${ago(c.health.lastOkAt)}` : '', ' ', res)),
+        c.health?.lastOkAt ? ` · OK ${ago(c.health.lastOkAt)}` : '',
+        c.probe && c.probe.ok === false ? ` · ✗ ${t('prov_probeFail')} (${c.probe.status ?? c.probe.message ?? ''})` : '',
+        c.probe && c.probe.ok === true ? ` · ✓ ${t('prov_probeOk')} ${ago(c.probe.at)}` : '', ' ', res)),
     h('label', { class: 'switch', title: t('statusReady') }, h('input', { type: 'checkbox', checked: c.enabled !== false, onchange: async (e) => {
       try { await api(`/api/connections/${encodeURIComponent(c.id)}`, { method: 'PATCH', body: { enabled: e.target.checked } }); } catch (err) { toast(err.message, 'err'); e.target.checked = !e.target.checked; }
     } }), h('i')),
@@ -65,7 +67,11 @@ function connRow(c, reload) {
 
 export async function render(root, ctx) {
   const host = h('div', { class: 'stack' });
-  root.append(h('div', { class: 'page-head' }, h('h1', null, t('prov_title')), h('p', null, t('prov_sub'))), host);
+  root.append(h('div', { class: 'page-head' }, h('h1', null, t('prov_title')), h('p', null, t('prov_sub')),
+    h('button', { class: 'btn sm', type: 'button', onclick: async (e) => {
+      e.target.disabled = true;
+      try { await api('/api/probe/run', { method: 'POST' }); toast(t('prov_probeDone')); await load(); } catch (err) { toast(err.message, 'err'); } finally { e.target.disabled = false; }
+    } }, icon('play'), ' ', t('prov_probeNow'))), host);
   const load = async () => {
     const [{ providers }, { proxies }] = await Promise.all([api('/api/providers'), api('/api/proxies')]);
     const card = (p) => h('div', { class: 'card prov' },

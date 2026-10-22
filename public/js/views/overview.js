@@ -41,6 +41,10 @@ export async function render(root, ctx) {
   root.append(
     h('div', { class: 'page-head' }, h('h1', null, t('ov_title')), h('p', null, t('ov_sub'))),
     o.counts.providersReady <= 1 ? h('div', { class: 'notice warn' }, t('ov_noKeys')) : null,
+    o.onboarding && !o.onboarding.complete ? h('div', { class: 'card' }, h('h3', null, t('ob_title')),
+      h('ol', { class: 'steps' }, o.onboarding.steps.map((st) => h('li', { class: st.done ? 'done' : '' },
+        h('span', { class: `badge ${st.done ? 'ok' : ''}` }, st.done ? '✓' : '•'), ' ',
+        h('a', { href: st.link }, t(`ob_${st.id}`)), st.optional ? h('span', { class: 'muted' }, ` (${t('ob_optional')})`) : null)))) : null,
     h('div', { class: 'grid stats' },
       stat(t('ov_requests'), fmtInt(total.requests), `${fmtInt(o.last7d.total.requests)} / 7 j`),
       stat(t('ov_success'), rate == null ? '—' : `${rate} %`),
