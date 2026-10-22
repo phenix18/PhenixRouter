@@ -10,6 +10,7 @@ function lastProvider(attempts = []) {
 }
 
 export async function runEmbeddings(gw, body, ctx) {
+  gw.assertModelAllowed(ctx.client, body.model);
   if (body.input == null || body.input === '' || (Array.isArray(body.input) && !body.input.length)) {
     throw new RouterError(400, '« input » est requis', 'invalid_request_error');
   }

@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS, resolveDataDir, clamp } from './config.js';
 import { Ledger } from './rea/ledger.js';
 import { Health } from './providers/health.js';
 import { Monitor } from './core/probe.js';
+import { AuditLog } from './core/audit.js';
 import { ResponseCache } from './core/cache.js';
 import { RateLimiter } from './core/ratelimit.js';
 import { PROVIDERS, getProvider } from './providers/registry.js';
@@ -23,6 +24,19 @@ const COMBO_NAME = /^[a-z0-9][a-z0-9._-]{0,47}$/i;
 const RESERVED = new Set([...VIRTUAL, 'phenixrouter-free']);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 
+/** Quotas d'une clé cliente (0 / vide = illimité). */
+export function normQuota(o = {}) {
+  const models = Array.isArray(o.allowedModels) ? o.allowedModels : typeof o.allowedModels === 'string' ? o.allowedModels.split(/[\n,]/) : [];
+  const exp = Number(o.expiresAt);
+  return {
+    dailyRequests: clamp(Math.round(Number(o.dailyRequests) || 0), 0, 1e9),
+    dailyBudgetUsd: clamp(Number(o.dailyBudgetUsd) || 0, 0, 1e6),
+    monthlyBudgetUsd: clamp(Number(o.monthlyBudgetUsd) || 0, 0, 1e7),
+    allowedModels: models.map((x) => String(x).trim()).filter((x) => /^[\w.:@/*+-]{1,120}$/.test(x)).slice(0, 50),
+    expiresAt: Number.isFinite(exp) && exp > 0 ? exp : null,
+  };
+}
+
 const SETTING_TYPES = {
   language: (v) => (['fr', 'en'].includes(v) ? v : 'fr'),
   requireApiKey: Boolean,
@@ -32,6 +46,8 @@ const SETTING_TYPES = {
   maxAttemptsPerRequest: (v) => clamp(Math.round(Number(v) || 8), 1, 30),
   cacheEnabled: Boolean,
   cacheTtlSec: (v) => clamp(Math.round(Number(v) || 600), 1, 86400),
+  semanticCache: Boolean,
+  semanticThreshold: (v) => clamp(Number(v) || 0.9, 0.6, 1),
   cacheMaxEntries: (v) => clamp(Math.round(Number(v) || 200), 0, 5000),
   rateLimitPerMin: (v) => clamp(Math.round(Number(v) || 0), 0, 100000),
   corsOrigins: (v) => (Array.isArray(v) ? v.map(String).filter((o) => /^https?:\/\/|^\*$/.test(o)).slice(0, 50) : []),
@@ -52,6 +68,7 @@ const SETTING_TYPES = {
     }
     return out;
   },
+  alertWebhookUrl: (v) => (typeof v === 'string' && (v === '' || /^https?:\/\//.test(v)) ? v.trim().slice(0, 500) : ''),
   probeIntervalMin: (v) => clamp(Math.round(Number(v) || 0), 0, 1440),
   tokenSaver: Boolean,
   tokenSaverMaxChars: (v) => clamp(Math.round(Number(v) || 6000), 500, 200000),
@@ -88,6 +105,7 @@ export class Gateway extends EventEmitter {
     this.rr = new Map();
     this.tunnel = new Tunnel();
     this.monitor = new Monitor(this);
+    this.audit = new AuditLog(this.dir);
     this.proxyHealth = new Map();
     this.proxyRr = 0;
     this.catalog = new Catalog(this);
@@ -157,12 +175,20 @@ export class Gateway extends EventEmitter {
 
   /* ───────── Clés API clientes ───────── */
 
+  _uniqueKeyName(name, exceptId) {
+    const base = String(name || 'clé').slice(0, 56);
+    let n = base; let i = 2;
+    while (this.db.apiKeys.some((k) => k.name === n && k.id !== exceptId)) { n = `${base}-${i}`; i += 1; }
+    return n;
+  }
+
   createApiKey(name, opts = {}) {
     const key = `phx-${randomToken(24)}`;
     const rec = {
-      id: randomUUID(), name: String(name || 'clé').slice(0, 60), hash: sha256(key), prefix: key.slice(0, 8),
+      id: randomUUID(), name: this._uniqueKeyName(name), hash: sha256(key), prefix: key.slice(0, 8),
       createdAt: Date.now(), lastUsedAt: null, enabled: true,
       rateLimitPerMin: clamp(Math.round(Number(opts.rateLimitPerMin) || 0), 0, 100000),
+      ...normQuota(opts),
     };
     this.db.apiKeys.push(rec);
     this.store.save();
@@ -175,15 +201,18 @@ export class Gateway extends EventEmitter {
   }
 
   listApiKeys() {
-    return this.db.apiKeys.map((r) => this.publicApiKey(r));
+    const now = new Date();
+    const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return this.db.apiKeys.map((r) => ({ ...this.publicApiKey(r), today: this.ledger.clientSince(r.name, day) }));
   }
 
   updateApiKey(id, patch) {
     const r = this.db.apiKeys.find((k) => k.id === id);
     if (!r) return null;
-    if (patch.name != null) r.name = String(patch.name).slice(0, 60);
+    if (patch.name != null) r.name = this._uniqueKeyName(patch.name, id);
     if (patch.enabled != null) r.enabled = !!patch.enabled;
     if (patch.rateLimitPerMin != null) r.rateLimitPerMin = clamp(Math.round(Number(patch.rateLimitPerMin) || 0), 0, 100000);
+    Object.assign(r, normQuota({ ...r, ...patch }));
     this.store.save();
     return this.publicApiKey(r);
   }
@@ -203,11 +232,50 @@ export class Gateway extends EventEmitter {
     const h = sha256(token);
     const rec = this.db.apiKeys.find((k) => k.hash === h && k.enabled);
     if (!rec) return null;
+    if (rec.expiresAt && Date.now() > rec.expiresAt) return null;
     if (!rec.lastUsedAt || Date.now() - rec.lastUsedAt > 60_000) {
       rec.lastUsedAt = Date.now();
       this.store.save();
     }
     return rec;
+  }
+
+  /** Politique (quotas) de la clé cliente portant ce nom, ou null (env, tableau de bord, anonyme). */
+  clientPolicy(name) {
+    const n = String(name ?? '').replace(/^mcp:/, '');
+    return this.db.apiKeys.find((k) => k.name === n && k.enabled) ?? null;
+  }
+
+  /** Raison de refus d'un client (requêtes/jour, budgets), ou null. */
+  clientBlock(name) {
+    const r = this.clientPolicy(name);
+    if (!r) return null;
+    name = r.name;
+    const now = new Date();
+    const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const month = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    if (r.dailyRequests) {
+      const n = this.ledger.clientSince(name, day).requests;
+      if (n >= r.dailyRequests) return { status: 429, type: 'quota_exceeded', message: `Quota quotidien de la clé « ${name} » atteint (${n}/${r.dailyRequests} requêtes)` };
+    }
+    if (r.dailyBudgetUsd) {
+      const c = this.ledger.clientSince(name, day).costUsd;
+      if (c >= r.dailyBudgetUsd) return { status: 429, type: 'quota_exceeded', message: `Budget quotidien de la clé « ${name} » atteint (${c.toFixed(2)} $ / ${r.dailyBudgetUsd} $)` };
+    }
+    if (r.monthlyBudgetUsd) {
+      const c = this.ledger.clientSince(name, month).costUsd;
+      if (c >= r.monthlyBudgetUsd) return { status: 429, type: 'quota_exceeded', message: `Budget mensuel de la clé « ${name} » atteint (${c.toFixed(2)} $ / ${r.monthlyBudgetUsd} $)` };
+    }
+    return null;
+  }
+
+  /** Lève 403 si la clé n'a pas le droit d'utiliser ce modèle (allowedModels : « groq/* », « phenix/free », « * »). */
+  assertModelAllowed(name, model) {
+    const r = this.clientPolicy(name);
+    if (!r?.allowedModels?.length) return;
+    const m = String(model ?? 'phenix/auto');
+    const ok = r.allowedModels.some((pat) => (pat === '*' ? true : pat.endsWith('*') ? m.startsWith(pat.slice(0, -1)) : m === pat));
+    if (!ok) throw httpError(403, `Modèle « ${m} » non autorisé pour la clé « ${name} »`, { type: 'model_not_allowed' });
   }
 
   /* ───────── Connexions fournisseurs ───────── */
@@ -544,7 +612,52 @@ export class Gateway extends EventEmitter {
     }
     const ex = this.ledger.recordExchange(x);
     this.emit('exchange', ex);
+    if (ex.costUsd > 0) this._budgetAlerts();
     return ex;
+  }
+
+  /** État des budgets (USD) : dépensé, plafond, pourcentage. */
+  budgetStatus() {
+    const s = this.settings();
+    const { day, month } = this.spend();
+    const row = (spent, limit) => ({ spent, limit, pct: limit > 0 ? Math.round((spent / limit) * 100) : null });
+    return { day: row(day, s.dailyBudgetUsd), month: row(month, s.monthlyBudgetUsd) };
+  }
+
+  _budgetAlerts() {
+    const b = this.budgetStatus();
+    const now = new Date();
+    const stamp = { day: now.toISOString().slice(0, 10), month: now.toISOString().slice(0, 7) };
+    this._alerted ??= new Set();
+    for (const period of ['day', 'month']) {
+      const r = b[period];
+      if (r.pct == null) continue;
+      for (const level of [100, 80]) {
+        if (r.pct < level) continue;
+        const k = `${period}:${stamp[period]}:${level}`;
+        if (this._alerted.has(k)) break;
+        this._alerted.add(k);
+        this.alert(level >= 100
+          ? `budget ${period === 'day' ? 'quotidien' : 'mensuel'} atteint : ${r.spent.toFixed(2)} $ / ${r.limit} $ — les fournisseurs payants sont suspendus`
+          : `budget ${period === 'day' ? 'quotidien' : 'mensuel'} à ${r.pct} % : ${r.spent.toFixed(2)} $ / ${r.limit} $`);
+        break;
+      }
+    }
+  }
+
+  /** Alerte d'exploitation : journal (warn) + webhook facultatif (réglage alertWebhookUrl ; Slack, Discord, ntfy…). */
+  alert(message) {
+    this.log({ level: 'warn', message });
+    this.emit('alert', message);
+    const url = this.settings().alertWebhookUrl;
+    if (!url) return;
+    const now = Date.now();
+    this._alertSent ??= new Map();
+    if (now - (this._alertSent.get(message) ?? 0) < 60_000) return;
+    this._alertSent.set(message, now);
+    const text = `[PhenixRouter] ${message}`;
+    fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, content: text, message: text }), signal: AbortSignal.timeout(5000) })
+      .catch((e) => this.log({ level: 'error', message: `webhook d'alerte injoignable : ${e?.cause?.code ?? e.message}` }));
   }
 
   close() {

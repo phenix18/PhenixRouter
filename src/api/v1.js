@@ -201,6 +201,7 @@ export async function handleV1(gw, req, res, url, ctx) {
     const client = authenticate(gw, req);
     const lim = gw.limiter.hit(`key:${client.id}`, client.limit || gw.settings().rateLimitPerMin);
     if (!lim.ok) throw httpError(429, 'Limite de requêtes par minute dépassée', { type: 'rate_limit_exceeded', retryAfterSec: lim.retryAfterSec });
+    if (req.method === 'POST') { const qb = gw.clientBlock(client.name); if (qb) throw httpError(qb.status, qb.message, { type: qb.type }); }
 
     const route = `${req.method} ${path}`;
     switch (route) {

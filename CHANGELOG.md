@@ -2,6 +2,15 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.4.0 — Équipe et sécurité d'exploitation
+- **Quotas par clé cliente** : requêtes/jour, budget/jour et /mois (USD), modèles autorisés (`groq/*`, `phenix/free`…), date d'expiration ; appliqués sur chat, Anthropic, Responses, Gemini, MCP, embeddings et images ; refus `429 quota_exceeded` / `403 model_not_allowed`. Noms de clés uniques.
+- **Journal d'audit chaîné par hachage** (`audit.jsonl`) : chaque action d'administration (sans valeur sensible) et chaque échec de connexion ; altération ou suppression détectée (`GET /api/audit`, vue « Journal »).
+- **Sauvegarde chiffrée** (scrypt + AES‑256‑GCM) portable d'une machine à l'autre : `phenixrouter backup|restore`, bouton dans Réglages ; copie de sécurité avant restauration.
+- **Alertes de budget** à 80 % et 100 % (une fois chacune) + **webhook** facultatif (Slack, Discord, ntfy…) également utilisé pour les clés en panne ; bandeau sur la vue d'ensemble.
+- **Proxys SOCKS5** (`socks5://`, `socks5h://` avec authentification) ; le tunnel est fermé avec la requête.
+- **Cache sémantique** (facultatif, sans API) : réutilise la réponse d'une question quasi identique (même contexte, mêmes nombres, même polarité, température 0, sans outils).
+- 102 tests (16 nouveaux).
+
 ## 1.3.0 — Exploitation : sonde, service, diagnostic
 - **Sonde de santé des clés** (réglage `probeIntervalMin`, 30 min par défaut, 0 = off) : vérifie en arrière-plan les clés via la découverte de modèles (aucun appel de génération, donc aucun coût) ; clé révoquée → mise en pause + alerte au journal ; clé rétablie → réactivée. Bouton « Vérifier maintenant » et état par connexion dans « Fournisseurs » (`GET /api/probe`, `POST /api/probe/run`).
 - **Service permanent sans droits admin** : `phenixrouter service install|uninstall|status` (systemd utilisateur, launchd, tâche planifiée Windows).

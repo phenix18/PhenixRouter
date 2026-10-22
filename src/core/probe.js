@@ -104,7 +104,7 @@ export class Monitor {
         } else if (r.ok === false) {
           const c = r.status ? classify(r.status, '', null) : { kind: 'network', retryMs: 0 };
           gw.health.failure(conn.id, c.kind === 'client' ? 'server' : c.kind, r.message, c.retryMs);
-          if (before?.ok !== false) gw.log({ level: 'warn', message: `sonde : « ${conn.name} » (${conn.provider}) en échec — ${r.message}${r.status ? ` [HTTP ${r.status}]` : ''}` });
+          if (before?.ok !== false) gw.alert(`sonde : « ${conn.name} » (${conn.provider}) en échec — ${r.message}${r.status ? ` [HTTP ${r.status}]` : ''}`);
         }
         out.push({ id: conn.id, ...entry });
       }

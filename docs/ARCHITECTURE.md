@@ -43,7 +43,8 @@ Chaque fournisseur a un `tier` (`free` | `paid`). `Gateway.costBlock()` applique
 - `core/modeltypes.js` — catalogues `/v1/models/<type>` et `/v1/models/info`.
 - `core/translate/gemini.js` + `api/gemini.js` — API Gemini native `/v1beta` ; `api/mcp.js` — serveur MCP `/mcp`.
 - `core/probe.js` — test de connexion et sonde périodique (découverte seule, sans coût) ; `core/service.js` — service systemd/launchd/schtasks ; `core/doctor.js` — diagnostic.
+- `core/audit.js` — journal d'audit chaîné (SHA‑256) ; `core/backup.js` — sauvegarde chiffrée portable ; quotas par clé dans `gateway.js` (`clientBlock`, `assertModelAllowed`) ; `core/cache.js` — cache exact + cache sémantique optionnel.
 - `core/clitools.js` — écriture non destructive de la config des outils clients ; `core/tunnel.js` — cloudflared / tailscale (binaires externes).
 
 ## Tests
-`npm test` : 86 tests (REA, traductions, routage, e2e avec faux fournisseur : basculement, flux, cache, sécurité ; parité : proxys, images, vidéo, web, Gemini, MCP, outils, tunnel).
+`npm test` : 102 tests (REA, traductions, routage, e2e avec faux fournisseur : basculement, flux, cache, sécurité ; parité : proxys, images, vidéo, web, Gemini, MCP, outils, tunnel).

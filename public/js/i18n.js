@@ -19,6 +19,10 @@ const fr = {
   ov_live: 'Activité en direct', ov_quick: 'Démarrage rapide', ov_endpoint: 'Endpoint OpenAI', ov_anthropic: 'Endpoint Anthropic',
   ov_noTraffic: 'Aucune requête pour l’instant. Envoyez-en une avec la commande ci-dessous.',
   ob_title: 'Mise en route', ob_key: 'Ajouter une clé gratuite (Groq, Gemini, OpenRouter…) dans « Fournisseurs »', ob_models: 'Vérifier que des modèles sont détectés', ob_request: 'Envoyer une première requête (Terrain de jeu)', ob_tools: 'Brancher vos outils (Claude Code, Codex, Cursor…) dans « Accès & proxys »', ob_optional: 'facultatif',
+  au_title: 'Journal d’audit (administration)', au_actor: 'Acteur', au_ip: 'IP', au_action: 'Action', au_chainOk: 'chaîne intacte', au_chainBad: 'chaîne rompue',
+  set_backup: 'Sauvegarde chiffrée', set_backupNote: 'Exporte clés fournisseurs, proxys, combos, alias, clés clientes et réglages dans un fichier protégé par mot de passe (restauration : phenixrouter restore).', set_backupPw: 'Mot de passe de la sauvegarde (10 caractères minimum)', set_backupBtn: 'Télécharger la sauvegarde', set_backupDone: 'Sauvegarde téléchargée',
+  bud_day: 'Budget quotidien', bud_month: 'Budget mensuel', set_webhook: 'Webhook d’alerte (budget, clé en panne) — URL Slack, Discord, ntfy…',
+  set_semantic: 'Cache sémantique : réutiliser la réponse d’une question quasi identique (température 0, sans outils)', set_semanticThr: 'Seuil de similarité (0,6 – 1)',
   ov_noKeys: 'Aucun fournisseur à clé n’est connecté : seul Pollinations (sans clé) répond. Ajoutez des clés gratuites dans « Fournisseurs ».',
   ov_rea: 'Dualité REA', ov_reaOk: 'cohérente', ov_reaBad: 'incohérente', ov_exchanges: 'échanges',
   models_title: 'Modèles', models_sub: 'Tous les modèles détectés (gratuits et payants), en direct chez vos fournisseurs',
@@ -42,7 +46,7 @@ const fr = {
   combos_virtualCode: 'modèles de code', combos_virtualVision: 'modèles avec images', combos_virtualReasoning: 'modèles de raisonnement',
   combos_virtualEmbed: 'embeddings', combos_virtualFree: 'gratuit uniquement', combos_virtualBest: 'meilleure qualité (selon le mode de coût)',
   keys_title: 'Clés & outils', keys_sub: 'Clés pour vos outils et configuration prête à copier', keys_new: 'Nouvelle clé',
-  keys_name: 'Nom', keys_prefix: 'Préfixe', keys_lastUsed: 'Dernier usage', keys_limit: 'Limite / min', keys_created: 'Clé créée',
+  keys_name: 'Nom', keys_prefix: 'Préfixe', keys_lastUsed: 'Dernier usage', keys_limit: 'Limite / min', keys_quotas: 'Quotas', keys_perDay: '/ jour', keys_perMonth: '/ mois', keys_expires: 'Expire le', keys_dreq: 'Requêtes par jour (0 = illimité)', keys_dbud: 'Budget par jour, $ (0 = illimité)', keys_mbud: 'Budget par mois, $ (0 = illimité)', keys_models: 'Modèles autorisés (vide = tous ; ex. groq/*, phenix/free)', keys_created: 'Clé créée',
   keys_once: 'Copiez-la maintenant : elle ne sera plus affichée.', keys_none: 'Aucune clé API.', keys_tools: 'Configurer vos outils',
   keys_claude: 'Claude Code', keys_codex: 'Codex CLI', keys_generic: 'Cursor, Cline, Continue, OpenCode… (compatible OpenAI)',
   keys_curl: 'Test rapide (curl)', keys_replaceKey: 'Remplacez VOTRE_CLE par une clé créée ci-dessus.', keys_active: 'actif', keys_disabled: 'désactivé',
@@ -74,7 +78,7 @@ const fr = {
   acc_tools: 'Outils clients', acc_toolsNote: 'Écrit la configuration de l’outil (sauvegarde .bak) avec une clé API dédiée, révocable dans « Clés & outils ».', acc_apply: 'Appliquer', acc_remove: 'Retirer', acc_applied: 'Configuration écrite', acc_removed: 'Configuration retirée', acc_nothing: 'Rien à retirer', acc_file: 'Fichier',
   acc_manual: 'Autres outils (à copier)', acc_mcp: 'Serveur MCP', acc_mcpNote: 'Ajoutez PhenixRouter comme serveur MCP (chat, recherche, lecture web, images) :',
   acc_tunnel: 'Accès distant (tunnel HTTPS)', acc_tunnelNote: 'Utilise cloudflared (sans compte) ou Tailscale Funnel, déjà installés sur cette machine. Une clé API est exigée.', acc_start: 'Démarrer', acc_stop: 'Arrêter', acc_missing: 'non installé', acc_running: 'actif', acc_stopped: 'arrêté', acc_starting: 'démarrage…',
-  acc_proxies: 'Proxys sortants', acc_proxiesNote: 'Faites sortir certaines connexions par un proxy HTTP/HTTPS (http://utilisateur:motdepasse@hôte:port). SOCKS non géré. Si un proxy choisi est indisponible, la requête échoue (jamais de sortie directe).', acc_addProxy: 'Ajouter un proxy', acc_proxyUrl: 'URL du proxy', acc_noProxy: 'Aucun proxy', acc_usedBy: 'connexions', acc_proxyOk: 'Proxy OK',
+  acc_proxies: 'Proxys sortants', acc_proxiesNote: 'Faites sortir certaines connexions par un proxy HTTP, HTTPS ou SOCKS5 (http://utilisateur:motdepasse@hôte:port, socks5h://hôte:1080 ; socks5h résout le DNS côté proxy). Si un proxy choisi est indisponible, la requête échoue (jamais de sortie directe).', acc_addProxy: 'Ajouter un proxy', acc_proxyUrl: 'URL du proxy', acc_noProxy: 'Aucun proxy', acc_usedBy: 'connexions', acc_proxyOk: 'Proxy OK',
 };
 
 const en = {
@@ -91,6 +95,10 @@ const en = {
   ov_byProvider: 'Breakdown by provider', ov_live: 'Live activity', ov_quick: 'Quick start', ov_endpoint: 'OpenAI endpoint', ov_anthropic: 'Anthropic endpoint',
   ov_noTraffic: 'No requests yet. Send one with the command below.',
   ob_title: 'Getting started', ob_key: 'Add a free key (Groq, Gemini, OpenRouter…) under “Providers”', ob_models: 'Check that models are detected', ob_request: 'Send a first request (Playground)', ob_tools: 'Connect your tools (Claude Code, Codex, Cursor…) under “Access & proxies”', ob_optional: 'optional',
+  au_title: 'Audit log (administration)', au_actor: 'Actor', au_ip: 'IP', au_action: 'Action', au_chainOk: 'chain intact', au_chainBad: 'chain broken',
+  set_backup: 'Encrypted backup', set_backupNote: 'Exports provider keys, proxies, combos, aliases, client keys and settings into a password-protected file (restore: phenixrouter restore).', set_backupPw: 'Backup password (10 characters minimum)', set_backupBtn: 'Download backup', set_backupDone: 'Backup downloaded',
+  bud_day: 'Daily budget', bud_month: 'Monthly budget', set_webhook: 'Alert webhook (budget, failing key) — Slack, Discord, ntfy URL…',
+  set_semantic: 'Semantic cache: reuse the answer to a near-identical question (temperature 0, no tools)', set_semanticThr: 'Similarity threshold (0.6 – 1)',
   ov_noKeys: 'No keyed provider is connected: only Pollinations (keyless) answers. Add free keys under “Providers”.',
   ov_rea: 'REA duality', ov_reaOk: 'consistent', ov_reaBad: 'inconsistent', ov_exchanges: 'exchanges',
   models_title: 'Models', models_sub: 'Every model (free and paid) detected live from your providers', models_search: 'Search a model…', models_provider: 'Provider',
@@ -110,7 +118,7 @@ const en = {
   combos_virtualFast: 'favors speed', combos_virtualSmart: 'large models', combos_virtualCode: 'code models', combos_virtualVision: 'image-capable models',
   combos_virtualReasoning: 'reasoning models', combos_virtualEmbed: 'embeddings', combos_virtualFree: 'free models only', combos_virtualBest: 'best quality (per cost mode)',
   keys_title: 'Keys & tools', keys_sub: 'Keys for your tools and ready-to-copy configuration', keys_new: 'New key', keys_name: 'Name', keys_prefix: 'Prefix',
-  keys_lastUsed: 'Last used', keys_limit: 'Limit / min', keys_created: 'Key created', keys_once: 'Copy it now: it will not be shown again.', keys_none: 'No API key.',
+  keys_lastUsed: 'Last used', keys_limit: 'Limit / min', keys_quotas: 'Quotas', keys_perDay: '/ day', keys_perMonth: '/ month', keys_expires: 'Expires', keys_dreq: 'Requests per day (0 = unlimited)', keys_dbud: 'Budget per day, $ (0 = unlimited)', keys_mbud: 'Budget per month, $ (0 = unlimited)', keys_models: 'Allowed models (empty = all; e.g. groq/*, phenix/free)', keys_created: 'Key created', keys_once: 'Copy it now: it will not be shown again.', keys_none: 'No API key.',
   keys_tools: 'Configure your tools', keys_generic: 'Cursor, Cline, Continue, OpenCode… (OpenAI-compatible)', keys_curl: 'Quick test (curl)',
   keys_replaceKey: 'Replace YOUR_KEY with a key created above.', keys_active: 'active', keys_disabled: 'disabled',
   play_title: 'Playground', play_sub: 'Try a model directly', play_model: 'Model', play_system: 'System prompt', play_placeholder: 'Write a message…',
@@ -137,7 +145,7 @@ const en = {
   acc_tools: 'Client tools', acc_toolsNote: 'Writes the tool configuration (.bak backup) with a dedicated API key, revocable under “Keys & tools”.', acc_apply: 'Apply', acc_remove: 'Remove', acc_applied: 'Configuration written', acc_removed: 'Configuration removed', acc_nothing: 'Nothing to remove', acc_file: 'File',
   acc_manual: 'Other tools (copy)', acc_mcp: 'MCP server', acc_mcpNote: 'Add PhenixRouter as an MCP server (chat, search, web fetch, images):',
   acc_tunnel: 'Remote access (HTTPS tunnel)', acc_tunnelNote: 'Uses cloudflared (no account) or Tailscale Funnel, already installed on this machine. An API key is required.', acc_start: 'Start', acc_stop: 'Stop', acc_missing: 'not installed', acc_running: 'running', acc_stopped: 'stopped', acc_starting: 'starting…',
-  acc_proxies: 'Outbound proxies', acc_proxiesNote: 'Route some connections through an HTTP/HTTPS proxy (http://user:pass@host:port). SOCKS not supported. If a chosen proxy is unavailable the request fails (never a direct exit).', acc_addProxy: 'Add a proxy', acc_proxyUrl: 'Proxy URL', acc_noProxy: 'No proxy', acc_usedBy: 'connections', acc_proxyOk: 'Proxy OK',
+  acc_proxies: 'Outbound proxies', acc_proxiesNote: 'Route some connections through an HTTP, HTTPS or SOCKS5 proxy (http://user:pass@host:port, socks5h://host:1080; socks5h resolves DNS on the proxy side). If a chosen proxy is unavailable the request fails (never a direct exit).', acc_addProxy: 'Add a proxy', acc_proxyUrl: 'Proxy URL', acc_noProxy: 'No proxy', acc_usedBy: 'connections', acc_proxyOk: 'Proxy OK',
 };
 
 const dicts = { fr, en };

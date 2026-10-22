@@ -2,7 +2,7 @@
 // Orchestration d'une requête de chat : résolution, cache, appel amont, comptabilité REA.
 import { resolveTargets } from './router.js';
 import { callUpstream, RouterError, ClientAbort } from './dispatch.js';
-import { ResponseCache } from './cache.js';
+import { ResponseCache, semanticSignature } from './cache.js';
 import { saveTokens } from './tokensaver.js';
 
 export const estimateTokens = (value) => {
@@ -26,6 +26,7 @@ function lastProvider(attempts) {
  * @param {{client:string, signal?:AbortSignal, route:string, requestedModel:string, reportRequested?:boolean}} ctx
  */
 export async function runChat(gw, body, ctx) {
+  gw.assertModelAllowed(ctx.client, ctx.requestedModel ?? body.model);
   const settings = gw.settings();
   let savedChars = 0;
   if (settings.tokenSaver) ({ body, savedChars } = saveTokens(body, settings.tokenSaverMaxChars));
@@ -49,6 +50,23 @@ export async function runChat(gw, body, ctx) {
         tokensIn: hit.json.usage?.prompt_tokens ?? tokensInEst, tokensOut: hit.json.usage?.completion_tokens ?? 0, ms: 0,
       });
       return { kind: 'json', json: hit.json, meta: { ...hit.meta, cached: true } };
+    }
+  }
+
+  // Cache sémantique (facultatif) : même contexte, dernière question quasi identique (mêmes nombres et même polarité).
+  const lastMsg = body.messages?.[body.messages.length - 1];
+  const lastText = typeof lastMsg?.content === 'string' ? lastMsg.content : '';
+  const semOk = cacheable && settings.semanticCache && !needTools && lastMsg?.role === 'user' && lastText;
+  const semCtx = semOk ? ResponseCache.key({ m: ctx.requestedModel, b: { ...body, stream: undefined, messages: body.messages.slice(0, -1) } }) : null;
+  const sem = semOk ? { ctx: semCtx, sig: semanticSignature(lastText) } : null;
+  if (semOk) {
+    const hit = gw.cache.getSimilar(semCtx, lastText, settings.semanticThreshold);
+    if (hit) {
+      gw.recordExchange({
+        ...base, provider: hit.meta.provider, model: hit.meta.served, cached: true, status: 'ok',
+        tokensIn: hit.json.usage?.prompt_tokens ?? tokensInEst, tokensOut: hit.json.usage?.completion_tokens ?? 0, ms: 0,
+      });
+      return { kind: 'json', json: hit.json, meta: { ...hit.meta, cached: true, semantic: true } };
     }
   }
 
@@ -93,7 +111,7 @@ export async function runChat(gw, body, ctx) {
       ...exchange, status: 'ok', tokensIn: usage.prompt_tokens ?? tokensInEst, tokensOut: usage.completion_tokens ?? 0, ms: result.ms,
     });
     gw.log({ level: 'info', route: ctx.route, model: served, ms: result.ms, message: 'ok' });
-    if (cacheKey) gw.cache.set(cacheKey, { json, meta });
+    if (cacheKey) gw.cache.set(cacheKey, { json, meta }, sem);
     return { kind: 'json', json, meta };
   }
 

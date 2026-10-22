@@ -4,6 +4,7 @@ import { VERSION, BRAND } from '../config.js';
 import { httpError } from '../gateway.js';
 import { PROVIDERS, getProvider } from '../providers/registry.js';
 import { testConnection } from '../core/probe.js';
+import { createBackup } from '../core/backup.js';
 import { runChat } from '../core/chat.js';
 import { importLegacyConfig } from '../core/legacy.js';
 import { toolPaths, applyTool, removeTool, manualSnippets, TOOLS } from '../core/clitools.js';
@@ -65,6 +66,7 @@ function overview(gw) {
       apiKeys: gw.db.apiKeys.length,
     },
     onboarding: onboarding(gw, rows),
+    budget: gw.budgetStatus(),
     spend: gw.spend(),
     costMode: gw.settings().costMode,
     last24h: gw.ledger.summary({ sinceMs: 24 * 3600 * 1000 }),
@@ -89,6 +91,15 @@ export async function handleAdmin(gw, req, res, url) {
     if (!PUBLIC.has(route)) {
       const ok = gw.verifySession(parseCookies(req).phx_session);
       if (!ok) throw httpError(401, 'Session requise');
+    }
+    // Journal d'audit : toute écriture d'administration (sans corps de requête) + échecs de connexion.
+    if (mutating && route !== 'POST /api/logout') {
+      res.once('finish', () => {
+        const failedLogin = route === 'POST /api/login' && res.statusCode >= 400;
+        if ((res.statusCode < 400 || failedLogin) && res.statusCode !== 429) {
+          gw.audit.record({ actor: failedLogin ? 'inconnu' : 'admin', ip: clientIp(req), action: failedLogin ? 'login.échec' : route.replace(/\/[0-9a-f-]{8,}/g, '/:id').replace(/\/(env|auto):[^/]+/g, '/:id'), status: res.statusCode });
+        }
+      });
     }
 
     /* ── Session ── */
@@ -167,6 +178,14 @@ export async function handleAdmin(gw, req, res, url) {
     }
 
     /* ── Modèles ── */
+    if (route === 'POST /api/backup') {
+      const { password } = await readJson(req, 4096);
+      let file;
+      try { file = createBackup(gw, password); } catch (e) { throw httpError(400, e.message); }
+      sendJson(res, 200, JSON.parse(file), { 'content-disposition': `attachment; filename="phenixrouter-backup-${new Date().toISOString().slice(0, 10)}.json"`, 'cache-control': 'no-store' });
+      return;
+    }
+    if (route === 'GET /api/audit') { sendJson(res, 200, { entries: gw.audit.recent(Math.min(500, Number(url.searchParams.get('limit')) || 100)), verify: gw.audit.verify() }); return; }
     if (route === 'GET /api/probe') { sendJson(res, 200, gw.monitor.status()); return; }
     if (route === 'POST /api/probe/run') { const results = await gw.monitor.sweep({ force: true }); sendJson(res, 200, { ok: true, count: results.length, results }); return; }
     if (route === 'GET /api/models') {

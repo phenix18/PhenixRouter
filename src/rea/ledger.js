@@ -128,6 +128,17 @@ export class Ledger {
     return sum;
   }
 
+  /** Requêtes et dépense estimée d'un client (nom de clé) depuis `sinceTs`. */
+  clientSince(name, sinceTs) {
+    let requests = 0; let costUsd = 0;
+    for (let i = this.exchanges.length - 1; i >= 0; i -= 1) {
+      const ex = this.exchanges[i];
+      if (ex.ts < sinceTs) break;
+      if (ex.client === name || ex.client === `mcp:${name}`) { requests += 1; costUsd += ex.costUsd ?? 0; }
+    }
+    return { requests, costUsd };
+  }
+
   verifyDuality() {
     return checkDuality(this.events);
   }

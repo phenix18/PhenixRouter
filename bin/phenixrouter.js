@@ -13,6 +13,7 @@ import { Gateway } from '../src/gateway.js';
 import { PROVIDERS } from '../src/providers/registry.js';
 import { manageService } from '../src/core/service.js';
 import { runDoctor } from '../src/core/doctor.js';
+import { createBackup, restoreBackup } from '../src/core/backup.js';
 
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const c = (code, s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
@@ -39,6 +40,8 @@ ${bold('Utilisation')}
   phenixrouter import <config.json>  Importe les comptes d'un config.json « phenixRouter v3 » (Python)
   phenixrouter setup <outil> [--key K] [--write|--remove]   Configure un outil : claude codex opencode cline droid copilot | openai continue aider gemini | list
   phenixrouter service install|uninstall|status   Service permanent (systemd / launchd / tâche Windows, sans admin)
+  phenixrouter backup <fichier> [--password P]    Sauvegarde chiffrée (mot de passe aussi via PHENIX_BACKUP_PASSWORD)
+  phenixrouter restore <fichier> [--password P]   Restaure une sauvegarde (serveur arrêté)
   phenixrouter doctor [--port N]     Diagnostic de l'environnement (Node, port, clés, réseau)
   phenixrouter reset-password [mdp]  Définit un nouveau mot de passe du tableau de bord
   phenixrouter --version | --help
@@ -76,6 +79,8 @@ function parseArgs(argv) {
     else if (a === '--no-browser') out.flags.noBrowser = true;
     else if (a === '--all') out.flags.all = true;
     else if (a === '--write') out.flags.write = true;
+    else if (a === '--password') out.flags.password = argv[++i];
+    else if (a.startsWith('--password=')) out.flags.password = a.slice(11);
     else if (a === '--key') out.flags.key = argv[++i];
     else if (a.startsWith('--key=')) out.flags.key = a.slice(6);
     else out._.push(a);
@@ -254,6 +259,12 @@ async function cmdService(flags, sub) {
   for (const n of r.notes) console.log(dim(`  ${n}`));
 }
 
+function backupPassword(flags) {
+  const p = flags.password ?? process.env.PHENIX_BACKUP_PASSWORD;
+  if (!p) throw new Error('Mot de passe requis : --password <mdp> ou variable PHENIX_BACKUP_PASSWORD (10 caractères minimum)');
+  return p;
+}
+
 async function cmdDoctor(flags) {
   const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
   const rows = await runDoctor({ dataDir: resolveDataDir(flags.dataDir), port, host: flags.host ?? '127.0.0.1' });
@@ -285,6 +296,21 @@ async function main() {
     case 'setup': cmdSetup(flags, sub); break;
     case 'service': await cmdService(flags, sub); break;
     case 'doctor': await cmdDoctor(flags); break;
+    case 'backup':
+      if (!sub) throw new Error('Utilisation : phenixrouter backup <fichier> --password <mdp>');
+      await mutating(flags, (gw) => {
+        writeFileSync(sub, createBackup(gw, backupPassword(flags)), { mode: 0o600 });
+        console.log(`${green('✓')} Sauvegarde chiffrée écrite : ${sub}  ${dim('(gardez le mot de passe : il n’est pas récupérable)')}`);
+      });
+      break;
+    case 'restore':
+      if (!sub) throw new Error('Utilisation : phenixrouter restore <fichier> --password <mdp>');
+      await mutating(flags, (gw) => {
+        const r = restoreBackup(gw, readFileSync(sub, 'utf8'), backupPassword(flags));
+        console.log(`${green('✓')} Restauré : ${r.connections} connexion(s), ${r.apiKeys} clé(s) API, ${r.proxies} proxy(s) — sauvegarde du ${r.exportedAt}`);
+        if (r.safety) console.log(dim(`  Ancienne configuration conservée : ${r.safety}`));
+      });
+      break;
     case 'keys':
       if (sub === 'list') {
         await mutating(flags, (gw) => {

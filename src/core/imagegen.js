@@ -200,6 +200,7 @@ function candidates(gw, requested) {
 }
 
 export async function runImages(gw, body, ctx) {
+  gw.assertModelAllowed(ctx.client, body.model);
   const prompt = String(body.prompt ?? '').trim().slice(0, 4000);
   if (!prompt) throw new RouterError(400, '« prompt » est requis', 'invalid_request_error');
   const { width, height } = parseSize(body.size);

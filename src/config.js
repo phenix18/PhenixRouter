@@ -23,6 +23,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   cacheEnabled: true,
   cacheTtlSec: 600,
   cacheMaxEntries: 200,
+  semanticCache: false,       // réutilise la réponse d'une question quasi identique (temperature 0, sans outils)
+  semanticThreshold: 0.9,     // similarité minimale (0,6 – 1)
   rateLimitPerMin: 0,
   corsOrigins: [],
   catalogTtlMin: 30,
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   pricing: {},                // surcharges de prix : { "openai/gpt-4o": { in: 2.5, out: 10 } } (USD / M tokens)
   tokenSaver: false,          // compresse les gros résultats d'outils avant l'envoi
   tokenSaverMaxChars: 6000,
+  alertWebhookUrl: '',        // POST JSON {text, content, message} sur alerte (budget, clé en panne)
   probeIntervalMin: 30,       // sonde de santé des clés (0 = désactivée)
   proxyTestUrl: 'https://www.cloudflare.com/cdn-cgi/trace',
 });

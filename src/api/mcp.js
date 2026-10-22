@@ -61,6 +61,7 @@ export async function handleMcp(gw, req, res, ctx) {
     if (Array.isArray(msg)) { rpcError(null, -32600, 'Les lots JSON-RPC ne sont pas pris en charge'); return; }
     if (msg.id === undefined) { res.writeHead(202); res.end(); return; } // notification
     const base = { client: `mcp:${client.name}`, signal: ctx.signal };
+    if (msg.method === 'tools/call') { const qb = gw.clientBlock(client.name); if (qb) { rpcError(msg.id, -32001, qb.message, 429); return; } }
     switch (msg.method) {
       case 'initialize':
         sendJson(res, 200, { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: BRAND.slug, version: VERSION } } }); return;

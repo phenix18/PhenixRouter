@@ -13,6 +13,16 @@ function snippets(key) {
   ];
 }
 
+function quotaText(k) {
+  const parts = [];
+  if (k.dailyRequests) parts.push(`${k.today?.requests ?? 0}/${k.dailyRequests} ${t('keys_perDay')}`);
+  if (k.dailyBudgetUsd) parts.push(`${(k.today?.costUsd ?? 0).toFixed(2)}/${k.dailyBudgetUsd} $ ${t('keys_perDay')}`);
+  if (k.monthlyBudgetUsd) parts.push(`${k.monthlyBudgetUsd} $ ${t('keys_perMonth')}`);
+  if (k.allowedModels?.length) parts.push(k.allowedModels.join(', '));
+  if (k.expiresAt) parts.push(`${t('keys_expires')} ${new Date(k.expiresAt).toISOString().slice(0, 10)}`);
+  return parts.length ? parts.join(' · ') : '∞';
+}
+
 export async function render(root) {
   const keysHost = h('div', { class: 'card flush' });
   const toolsHost = h('div', { class: 'card' });
@@ -23,9 +33,10 @@ export async function render(root) {
   const load = async () => {
     const { keys } = await api('/api/keys');
     keysHost.replaceChildren(h('div', { class: 'table-wrap' }, keys.length ? h('table', null,
-      h('thead', null, h('tr', null, [t('keys_name'), t('keys_prefix'), t('keys_lastUsed'), t('keys_limit'), '', ''].map((x) => h('th', null, x)))),
+      h('thead', null, h('tr', null, [t('keys_name'), t('keys_prefix'), t('keys_lastUsed'), t('keys_limit'), t('keys_quotas'), '', ''].map((x) => h('th', null, x)))),
       h('tbody', null, keys.map((k) => h('tr', null,
         h('td', null, k.name), h('td', { class: 'mono' }, `${k.prefix ?? 'phx-'}…`), h('td', null, fmtTime(k.lastUsedAt)), h('td', null, k.rateLimitPerMin || '∞'),
+        h('td', { class: 'small' }, quotaText(k)),
         h('td', null, h('label', { class: 'switch', title: k.enabled ? t('keys_active') : t('keys_disabled') }, h('input', { type: 'checkbox', checked: k.enabled !== false, onchange: async (e) => {
           try { await api(`/api/keys/${k.id}`, { method: 'PATCH', body: { enabled: e.target.checked } }); } catch (err) { toast(err.message, 'err'); e.target.checked = !e.target.checked; }
         } }), h('i'))),
@@ -38,11 +49,22 @@ export async function render(root) {
   const create = async () => {
     const name = h('input', { type: 'text', maxlength: 60, placeholder: 'claude-code' });
     const limit = h('input', { type: 'number', min: 0, value: 0 });
-    const ok = await modal(t('keys_new'), h('div', { class: 'form' }, h('label', { class: 'lbl' }, t('keys_name'), name), h('label', { class: 'lbl' }, t('keys_limit'), limit)), { actions: [
+    const dreq = h('input', { type: 'number', min: 0, value: 0 });
+    const dbud = h('input', { type: 'number', min: 0, step: '0.01', value: 0 });
+    const mbud = h('input', { type: 'number', min: 0, step: '0.01', value: 0 });
+    const models = h('input', { type: 'text', placeholder: 'groq/*, phenix/free' });
+    const exp = h('input', { type: 'date' });
+    const ok = await modal(t('keys_new'), h('div', { class: 'form' }, h('label', { class: 'lbl' }, t('keys_name'), name), h('label', { class: 'lbl' }, t('keys_limit'), limit),
+      h('details', null, h('summary', null, t('keys_quotas')),
+        h('label', { class: 'lbl' }, t('keys_dreq'), dreq), h('label', { class: 'lbl' }, t('keys_dbud'), dbud), h('label', { class: 'lbl' }, t('keys_mbud'), mbud),
+        h('label', { class: 'lbl' }, t('keys_models'), models), h('label', { class: 'lbl' }, t('keys_expires'), exp))), { actions: [
       { label: t('cancel'), value: false },
       { label: t('add'), primary: true, value: true, onClick: async (close) => {
         try {
-          const r = await api('/api/keys', { method: 'POST', body: { name: name.value.trim() || 'key', rateLimitPerMin: Number(limit.value) || 0 } });
+          const r = await api('/api/keys', { method: 'POST', body: {
+            name: name.value.trim() || 'key', rateLimitPerMin: Number(limit.value) || 0, dailyRequests: Number(dreq.value) || 0, dailyBudgetUsd: Number(dbud.value) || 0,
+            monthlyBudgetUsd: Number(mbud.value) || 0, allowedModels: models.value, expiresAt: exp.value ? Date.parse(`${exp.value}T23:59:59Z`) : null,
+          } });
           close(false);
           drawTools(r.key);
           await modal(t('keys_created'), h('div', null, h('p', null, t('keys_once')), copyBox(r.key)), { actions: [{ label: t('close'), primary: true, value: true }] });

@@ -32,8 +32,9 @@ Légende : ✅ présent · 🟡 partiel · ❌ absent · ⛔ volontairement non 
 | Tableau de bord | ✅ Next.js | 🟡 page HTML, clé admin affichée en clair | ✅ SPA sans dépendance, session HttpOnly, CSP stricte, fr/en |
 | CLI | ✅ + menu terminal + tray | ✅ `list/models/status` | ✅ `start/keys/list/models/status/usage/import/setup/providers` (sans tray) |
 | Écriture de config des outils (Claude Code, Codex, Cline, OpenCode, Copilot…) | ✅ | ❌ | ✅ écriture non destructive + `.bak` ; Continue en extrait ; ⛔ Kilo |
-| Proxy pools, tunnel (cloudflared/tailscale), Gemini natif `/v1beta`, MCP | ✅ | ❌ | ✅ (proxys HTTP/HTTPS, échec fermé ; tunnels via binaires externes) |
-| Cloud sync, icône de barre, SOCKS, AssemblyAI, ComfyUI | ✅ | ❌ | ⛔ / ❌ non repris |
+| Proxy pools, tunnel (cloudflared/tailscale), Gemini natif `/v1beta`, MCP | ✅ | ❌ | ✅ (proxys HTTP/HTTPS/SOCKS5, échec fermé ; tunnels via binaires externes) |
+| Cloud sync, icône de barre, AssemblyAI, ComfyUI | ✅ | ❌ | ⛔ / ❌ non repris |
+| Équipe : quotas par clé, audit chaîné, sauvegarde chiffrée, alertes + webhook | 🟡 | ❌ | ✅ |
 | Sécurité par défaut | mot de passe `123456` | clé admin publique, CORS `*` + credentials | mot de passe aléatoire, clés chiffrées AES‑256‑GCM, écoute locale |
 | Exécutable autonome `.exe` / Linux / macOS | ❌ | ✅ PyInstaller (Windows) | ✅ Node SEA, 6 cibles, installeurs, release CI |
 | Installeur Windows / service Linux / launchd | ❌ | ✅ (droits admin, `C:\`) | ✅ par utilisateur, sans admin |

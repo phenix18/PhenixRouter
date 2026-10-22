@@ -12,9 +12,10 @@ Tout-en-un, zéro dépendance, tableau de bord intégré, exécutable autonome.
 - **Dynamique** : catalogue de modèles découvert **en direct**, modèles virtuels `phenix/auto|free|best|fast|smart|code|vision|reasoning|embed`, combos (repli, rotation, plus rapide, aléatoire), alias, priorité par clé.
 - **Robuste** : rotation de clés, coupe-circuit (`Retry-After`), erreurs cachées dans un 200, flux vides, outils non supportés, cache de réponses, limites de débit.
 - **Compatible** : `/v1/chat/completions`, `/v1/messages` (Claude Code), `/v1/responses` (Codex), `/v1/models`, `/v1/embeddings`, `/v1/images/generations`, `/v1/audio/transcriptions|translations|speech`, `/v1/videos/generations`, `/v1/search`, `/v1/web/fetch`, `/v1/models/<type>`, `/v1beta` (Gemini natif), `/mcp` (MCP), `/health`.
-- **Réseau** : proxys sortants par connexion ou en pool (échec fermé), tunnel cloudflared/tailscale, config automatique des outils clients (`phenixrouter setup`).
+- **Réseau** : proxys sortants par connexion ou en pool (échec fermé), tunnel cloudflared/tailscale, proxys HTTP/HTTPS/SOCKS5, config automatique des outils clients (`phenixrouter setup`).
 - **Économe** : *Token Saver* (compresse les gros résultats d'outils), cache, budgets.
 - **Traçable (REA)** : chaque échange = paire *REQUEST/COMPLETION* (+ `cost_usd` si payant) dans un grand livre append-only ([docs/REA.md](docs/REA.md)).
+- **Pour une équipe** : quotas par clé (requêtes, budget, modèles autorisés, expiration), journal d'audit infalsifiable (chaîne SHA‑256), sauvegarde chiffrée, alertes de budget + webhook.
 - **Surveillé** : sonde de santé des clés (sans coût), alertes au journal, démarrage automatique en service, `phenixrouter doctor`.
 - **Sûr** : clés chiffrées (AES‑256‑GCM), mot de passe aléatoire, écoute locale par défaut, CSP stricte, garde SSRF.
 
@@ -80,6 +81,7 @@ phenixrouter keys list|create <nom>|revoke <id>
 phenixrouter import <config.json>        phenixrouter setup claude|codex|openai
 phenixrouter service install|uninstall|status   # démarrage automatique (sans droits admin)
 phenixrouter doctor                             # diagnostic de l'environnement
+phenixrouter backup sauvegarde.json --password …   # sauvegarde chiffrée (restore : phenixrouter restore)
 phenixrouter reset-password
 ```
 
@@ -96,7 +98,7 @@ Les exécutables ne sont pas signés : Windows SmartScreen / macOS Gatekeeper de
 ## Développement
 
 ```bash
-npm test      # 86 tests, node:test, aucun réseau requis (faux fournisseur)
+npm test      # 102 tests, node:test, aucun réseau requis (faux fournisseur)
 ```
 
 Documentation : [Architecture](docs/ARCHITECTURE.md) · [Modèle REA](docs/REA.md) · [Fournisseurs](docs/PROVIDERS.md) · [Comparaison](docs/COMPARAISON.md) · [Changelog](CHANGELOG.md).

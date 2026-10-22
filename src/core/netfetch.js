@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Fido-labs —kcw—
 // fetch() à travers un proxy HTTP/HTTPS sortant (tunnel CONNECT), sans aucune dépendance.
 // Sert aux « pools de proxys » : une connexion fournisseur peut sortir par un proxy dédié
-// (ou par un pool en rotation). SOCKS n'est volontairement pas géré (pas de dépendance).
+// (ou par un pool en rotation). HTTP, HTTPS et SOCKS5 (socks5h : résolution DNS côté proxy, sans fuite DNS).
 import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
@@ -14,10 +14,8 @@ const NO_BODY = new Set([101, 204, 205, 304]);
 export function parseProxyUrl(raw) {
   let u;
   try { u = new URL(String(raw).trim()); } catch { throw new Error('URL de proxy invalide'); }
-  if (u.protocol === 'socks:' || u.protocol === 'socks5:' || u.protocol === 'socks4:' || u.protocol === 'socks5h:') {
-    throw new Error('SOCKS non supporté : utilisez un proxy HTTP/HTTPS (ou un pont SOCKS→HTTP local)');
-  }
-  if (!['http:', 'https:'].includes(u.protocol)) throw new Error('Le proxy doit commencer par http:// ou https://');
+  if (u.protocol === 'socks4:' || u.protocol === 'socks:') throw new Error('SOCKS4 non supporté : utilisez socks5:// (ou socks5h://)');
+  if (!['http:', 'https:', 'socks5:', 'socks5h:'].includes(u.protocol)) throw new Error('Le proxy doit commencer par http://, https://, socks5:// ou socks5h://');
   if (!u.hostname) throw new Error('Hôte du proxy manquant');
   return u;
 }
@@ -37,7 +35,7 @@ const authHeader = (u) => (u.username
 
 function openProxySocket(proxy, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const port = Number(proxy.port) || (proxy.protocol === 'https:' ? 443 : 80);
+    const port = Number(proxy.port) || (proxy.protocol === 'https:' ? 443 : isSocks(proxy) ? 1080 : 80);
     const sock = proxy.protocol === 'https:'
       ? tls.connect({ host: proxy.hostname, port, servername: proxy.hostname })
       : net.connect({ host: proxy.hostname, port });
@@ -72,6 +70,65 @@ async function connectTunnel(proxy, host, port, timeoutMs = 15000) {
   });
 }
 
+const isSocks = (proxy) => proxy.protocol === 'socks5:' || proxy.protocol === 'socks5h:';
+
+/** Lecteur d'octets exacts sur un socket (poignée de main SOCKS5). */
+function reader(sock) {
+  let buf = Buffer.alloc(0); let waiting = null; let failure = null;
+  const wake = () => { if (waiting && (buf.length >= waiting.n || failure)) { const w = waiting; waiting = null; failure ? w.reject(failure) : w.resolve(); } };
+  sock.on('data', (c) => { buf = Buffer.concat([buf, c]); wake(); });
+  sock.once('error', (e) => { failure = e; wake(); });
+  sock.once('close', () => { failure ??= new Error('connexion fermée par le proxy SOCKS'); wake(); });
+  return {
+    async take(n) {
+      if (buf.length < n) await new Promise((resolve, reject) => { waiting = { n, resolve, reject }; wake(); });
+      const out = buf.subarray(0, n); buf = buf.subarray(n); return out;
+    },
+    rest() { const r = buf; buf = Buffer.alloc(0); return r; },
+    stop() { sock.removeAllListeners('data'); },
+  };
+}
+
+const SOCKS_ERRORS = { 1: 'échec général', 2: 'connexion interdite par le proxy', 3: 'réseau inaccessible', 4: 'hôte inaccessible', 5: 'connexion refusée', 6: 'TTL expiré', 7: 'commande non supportée', 8: 'adresse non supportée' };
+
+/** Tunnel SOCKS5 (RFC 1928, auth utilisateur/mot de passe RFC 1929) vers host:port ; renvoie le socket brut. */
+export async function socksConnect(proxy, host, port, timeoutMs = 15000) {
+  const sock = await openProxySocket(proxy, timeoutMs);
+  const rd = reader(sock);
+  const timer = setTimeout(() => sock.destroy(new Error('délai SOCKS5 dépassé')), timeoutMs);
+  try {
+    const user = proxy.username ? decodeURIComponent(proxy.username) : null;
+    const pass = decodeURIComponent(proxy.password || '');
+    sock.write(Buffer.from(user != null ? [5, 2, 0, 2] : [5, 1, 0]));
+    const [ver, method] = await rd.take(2);
+    if (ver !== 5) throw new Error('réponse SOCKS5 invalide');
+    if (method === 0xff) throw new Error('proxy SOCKS5 : aucune méthode d’authentification acceptable');
+    if (method === 2) {
+      if (user == null) throw new Error('proxy SOCKS5 : identifiants requis');
+      const u = Buffer.from(user); const p = Buffer.from(pass);
+      if (u.length > 255 || p.length > 255) throw new Error('identifiants SOCKS5 trop longs');
+      sock.write(Buffer.concat([Buffer.from([1, u.length]), u, Buffer.from([p.length]), p]));
+      const [, st] = await rd.take(2);
+      if (st !== 0) throw new Error('proxy SOCKS5 : authentification refusée');
+    } else if (method !== 0) throw new Error('méthode SOCKS5 non supportée');
+    const h = Buffer.from(host);
+    if (h.length > 255) throw new Error('nom d’hôte trop long');
+    sock.write(Buffer.concat([Buffer.from([5, 1, 0, 3, h.length]), h, Buffer.from([port >> 8, port & 255])]));
+    const [v2, rep, , atyp] = await rd.take(4);
+    if (v2 !== 5) throw new Error('réponse SOCKS5 invalide');
+    if (rep !== 0) throw new Error(`proxy SOCKS5 : ${SOCKS_ERRORS[rep] ?? `erreur ${rep}`}`);
+    await rd.take(atyp === 1 ? 6 : atyp === 4 ? 18 : (await rd.take(1))[0] + 2);
+    const rest = rd.rest(); rd.stop();
+    if (rest.length) sock.unshift(rest);
+    return sock;
+  } catch (e) {
+    sock.destroy();
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function toResponse(res) {
   const headers = new Headers();
   for (const [k, v] of Object.entries(res.headers)) {
@@ -101,11 +158,19 @@ export async function fetchViaProxy(proxyUrl, url, init = {}) {
   const isHttps = target.protocol === 'https:';
   const port = Number(target.port) || (isHttps ? 443 : 80);
   let agentOpts;
-  if (isHttps) {
+  let tunnel = null; // socket du tunnel : fermé avec la requête (pas de fuite de descripteurs)
+  if (isSocks(proxy)) {
+    const raw = await socksConnect(proxy, target.hostname, port);
+    if (isHttps) {
+      const secure = tls.connect({ socket: raw, servername: target.hostname, ...(init.tlsOptions ?? {}) });
+      await new Promise((resolve, reject) => { secure.once('secureConnect', resolve); secure.once('error', reject); });
+      tunnel = secure; agentOpts = { createConnection: () => secure, agent: undefined };
+    } else { tunnel = raw; agentOpts = { createConnection: () => raw, agent: undefined }; }
+  } else if (isHttps) {
     const raw = await connectTunnel(proxy, target.hostname, port);
     const secure = tls.connect({ socket: raw, servername: target.hostname, ...(init.tlsOptions ?? {}) });
     await new Promise((resolve, reject) => { secure.once('secureConnect', resolve); secure.once('error', reject); });
-    agentOpts = { createConnection: () => secure, agent: undefined };
+    tunnel = secure; agentOpts = { createConnection: () => secure, agent: undefined };
   } else {
     // Cible http:// : requête « forward proxy » classique.
     const auth = authHeader(proxy);
@@ -114,13 +179,13 @@ export async function fetchViaProxy(proxyUrl, url, init = {}) {
 
   return new Promise((resolve, reject) => {
     const lib = isHttps ? https : http;
-    const opts = isHttps
+    const opts = isHttps || isSocks(proxy)
       ? { host: target.hostname, port, path: `${target.pathname}${target.search}`, method, headers, ...agentOpts }
       : { host: proxy.hostname, port: Number(proxy.port) || 80, path: target.toString(), method, headers: { ...headers, host: target.host }, agent: false };
     const req = lib.request(opts, (res) => resolve(toResponse(res)));
     const onAbort = () => req.destroy(init.signal.reason ?? new Error('annulé'));
     init.signal?.addEventListener('abort', onAbort, { once: true });
-    req.once('close', () => init.signal?.removeEventListener('abort', onAbort));
+    req.once('close', () => { init.signal?.removeEventListener('abort', onAbort); tunnel?.destroy(); });
     req.once('error', reject);
     if (body != null) req.write(body);
     req.end();

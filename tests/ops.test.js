@@ -155,3 +155,82 @@ test('doctor : diagnostic complet, version de Node trop ancienne et dossier inac
   assert.equal(bad.find((x) => x.name === 'Dossier de données').status, 'fail');
   rmSync(dir, { recursive: true, force: true });
 });
+
+/* ───────── SOCKS5 ───────── */
+import net from 'node:net';
+import { fetchViaProxy, parseProxyUrl } from '../src/core/netfetch.js';
+
+/** Faux proxy SOCKS5 (sans auth ou user/mot de passe) qui relaie vers la cible demandée. */
+function socks5Server({ auth } = {}) {
+  const seen = []; const conns = new Set();
+  const server = net.createServer((c) => {
+    conns.add(c); c.once('close', () => conns.delete(c));
+    let step = 'greet'; let buf = Buffer.alloc(0);
+    c.on('error', () => {});
+    c.on('data', (d) => {
+      buf = Buffer.concat([buf, d]);
+      if (step === 'greet' && buf.length >= 2 + buf[1]) {
+        const methods = [...buf.subarray(2, 2 + buf[1])]; buf = buf.subarray(2 + buf[1]);
+        if (auth) { if (!methods.includes(2)) { c.end(Buffer.from([5, 0xff])); return; } c.write(Buffer.from([5, 2])); step = 'auth'; } else { c.write(Buffer.from([5, 0])); step = 'req'; }
+      }
+      if (step === 'auth' && buf.length >= 2 && buf.length >= 3 + buf[1] + buf[2 + buf[1]]) {
+        const ul = buf[1]; const u = buf.subarray(2, 2 + ul).toString(); const pl = buf[2 + ul]; const p = buf.subarray(3 + ul, 3 + ul + pl).toString();
+        buf = buf.subarray(3 + ul + pl);
+        if (u === auth.user && p === auth.pass) { c.write(Buffer.from([1, 0])); step = 'req'; } else { c.end(Buffer.from([1, 1])); return; }
+      }
+      if (step === 'req' && buf.length >= 5 && buf.length >= 7 + buf[4]) {
+        const host = buf.subarray(5, 5 + buf[4]).toString(); const port = buf.readUInt16BE(5 + buf[4]); buf = buf.subarray(7 + buf[4]);
+        seen.push({ host, port });
+        step = 'pipe';
+        const out = net.connect(port, host === 'localhost' ? '127.0.0.1' : host, () => {
+          c.write(Buffer.from([5, 0, 0, 1, 0, 0, 0, 0, 0, 0]));
+          if (buf.length) out.write(buf);
+          c.pipe(out); out.pipe(c);
+        });
+        out.on('error', () => { try { c.end(Buffer.from([5, 5, 0, 1, 0, 0, 0, 0, 0, 0])); } catch { /* ignore */ } });
+        c.on('close', () => out.destroy());
+      }
+    });
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ port: server.address().port, seen, close: () => new Promise((r) => { for (const x of conns) x.destroy(); server.close(r); }) })));
+}
+
+test('SOCKS5 : requête http:// via proxy sans auth, nom d’hôte résolu côté proxy (socks5h)', async () => {
+  const target = http.createServer((req, res) => { res.end(`vu:${req.headers.host}`); });
+  await new Promise((resolve) => target.listen(0, '127.0.0.1', resolve));
+  const socks = await socks5Server();
+  const res = await fetchViaProxy(`socks5h://127.0.0.1:${socks.port}`, `http://localhost:${target.address().port}/x`);
+  assert.equal(await res.text(), `vu:localhost:${target.address().port}`);
+  assert.deepEqual(socks.seen[0], { host: 'localhost', port: target.address().port }, 'le nom est transmis tel quel au proxy');
+  target.closeAllConnections?.(); target.close(); await socks.close();
+});
+
+test('SOCKS5 : authentification utilisateur/mot de passe, refus si mauvais identifiants', async () => {
+  const target = http.createServer((req, res) => { let n = 0; req.on('data', (c) => { n += c.length; }); req.on('end', () => res.end(`recu:${n}`)); });
+  await new Promise((resolve) => target.listen(0, '127.0.0.1', resolve));
+  const socks = await socks5Server({ auth: { user: 'bob', pass: 'p@ss:w/rd' } });
+  const ok = await fetchViaProxy(`socks5://bob:${encodeURIComponent('p@ss:w/rd')}@127.0.0.1:${socks.port}`, `http://127.0.0.1:${target.address().port}/`, { method: 'POST', body: 'hello' });
+  assert.equal(await ok.text(), 'recu:5');
+  await assert.rejects(() => fetchViaProxy(`socks5://bob:mauvais@127.0.0.1:${socks.port}`, `http://127.0.0.1:${target.address().port}/`), /authentification refusée/);
+  await assert.rejects(() => fetchViaProxy(`socks5://127.0.0.1:${socks.port}`, `http://127.0.0.1:${target.address().port}/`), /aucune méthode|identifiants/);
+  target.closeAllConnections?.(); target.close(); await socks.close();
+});
+
+test('SOCKS5 : cible https:// (TLS par-dessus le tunnel) et erreur « connexion refusée » claire', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'phx-s5-'));
+  let cert; let key;
+  try {
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(dir, 'k.pem'), '-out', join(dir, 'c.pem'), '-days', '2', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1'], { stdio: 'ignore' });
+    cert = readFileSync(join(dir, 'c.pem')); key = readFileSync(join(dir, 'k.pem'));
+  } catch { rmSync(dir, { recursive: true, force: true }); return; }
+  const { default: https } = await import('node:https');
+  const target = https.createServer({ cert, key }, (req, res) => res.end('tls-socks-ok'));
+  await new Promise((resolve) => target.listen(0, '127.0.0.1', resolve));
+  const socks = await socks5Server();
+  const res = await fetchViaProxy(`socks5h://127.0.0.1:${socks.port}`, `https://localhost:${target.address().port}/`, { tlsOptions: { ca: cert } });
+  assert.equal(await res.text(), 'tls-socks-ok');
+  await assert.rejects(() => fetchViaProxy(`socks5h://127.0.0.1:${socks.port}`, 'http://127.0.0.1:1/'), /connexion refusée/);
+  assert.equal(parseProxyUrl('socks5h://h').protocol, 'socks5h:');
+  target.closeAllConnections?.(); target.close(); await socks.close(); rmSync(dir, { recursive: true, force: true });
+});

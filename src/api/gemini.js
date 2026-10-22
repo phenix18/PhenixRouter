@@ -29,6 +29,7 @@ export async function handleGemini(gw, req, res, url, ctx) {
     const client = authenticate(gw, req);
     const lim = gw.limiter.hit(`key:${client.id}`, client.limit || gw.settings().rateLimitPerMin);
     if (!lim.ok) throw httpError(429, 'Limite de requêtes par minute dépassée', { retryAfterSec: lim.retryAfterSec });
+    if (req.method === 'POST') { const qb = gw.clientBlock(client.name); if (qb) throw httpError(qb.status, qb.message, { type: qb.type }); }
 
     if (req.method === 'GET' && path === '/v1beta/models') {
       sendJson(res, 200, { models: listModels(gw, false).data.map(modelEntry) }); return;

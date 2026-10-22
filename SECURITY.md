@@ -10,6 +10,7 @@ Ne publiez pas de faille dans une issue publique. Écrivez au mainteneur via le 
 - Clés fournisseurs chiffrées au repos (AES‑256‑GCM) ; fichiers de données en `600`.
 - Session HttpOnly + SameSite=Strict, contrôle d'Origin sur les écritures, CSP stricte, anti-force-brute sur la connexion.
 - Garde SSRF sur la lecture web ; proxys : échec fermé ; identifiants de vidéo signés HMAC.
+- Journal d'audit chaîné (SHA‑256) : toute altération est détectée ; sauvegardes chiffrées (scrypt + AES‑256‑GCM).
 - Aucune télémétrie. Aucun code d'interception (MITM) ni réutilisation de jetons d'abonnement.
 
 ## À votre charge si vous l'exposez

@@ -41,6 +41,7 @@ export async function render(root, ctx) {
   root.append(
     h('div', { class: 'page-head' }, h('h1', null, t('ov_title')), h('p', null, t('ov_sub'))),
     o.counts.providersReady <= 1 ? h('div', { class: 'notice warn' }, t('ov_noKeys')) : null,
+    ['day', 'month'].map((k) => (o.budget?.[k]?.pct >= 80 ? h('div', { class: `notice ${o.budget[k].pct >= 100 ? 'err' : 'warn'}` }, `${t(k === 'day' ? 'bud_day' : 'bud_month')} : ${o.budget[k].spent.toFixed(2)} $ / ${o.budget[k].limit} $ (${o.budget[k].pct} %)`) : null)),
     o.onboarding && !o.onboarding.complete ? h('div', { class: 'card' }, h('h3', null, t('ob_title')),
       h('ol', { class: 'steps' }, o.onboarding.steps.map((st) => h('li', { class: st.done ? 'done' : '' },
         h('span', { class: `badge ${st.done ? 'ok' : ''}` }, st.done ? '✓' : '•'), ' ',

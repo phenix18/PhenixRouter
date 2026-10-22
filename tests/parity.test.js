@@ -68,7 +68,8 @@ function startProxy({ requireAuth = false } = {}) {
 }
 
 test('proxy : validation d’URL, SOCKS refusé, identifiants masqués', () => {
-  assert.throws(() => parseProxyUrl('socks5://h:1'), /SOCKS/);
+  assert.throws(() => parseProxyUrl('socks4://h:1'), /SOCKS4/);
+  assert.equal(parseProxyUrl('socks5://h:1').protocol, 'socks5:');
   assert.throws(() => parseProxyUrl('ftp://h'), /http/);
   assert.throws(() => parseProxyUrl('pas une url'), /invalide/);
   assert.ok(!maskProxyUrl('http://bob:secret@h:8080').includes('secret'));
@@ -436,7 +437,7 @@ test('API admin : outils clients (clé dédiée) et proxys exigent une session',
   const get = (p, init = {}) => fetch(`${r.app.url}${p}`, { ...init, headers: { cookie, origin: r.app.url, 'content-type': 'application/json', ...(init.headers ?? {}) } });
   const info = await (await get('/api/clitools')).json();
   assert.ok(info.tools.some((t) => t.id === 'opencode') && info.manual.aider);
-  const bad = await get('/api/proxies', { method: 'POST', body: JSON.stringify({ name: 'x', url: 'socks5://h:1' }) });
+  const bad = await get('/api/proxies', { method: 'POST', body: JSON.stringify({ name: 'x', url: 'socks4://h:1' }) });
   assert.equal(bad.status, 400);
   const p = await (await get('/api/proxies', { method: 'POST', body: JSON.stringify({ name: 'ok', url: 'http://u:pw@127.0.0.1:9' }) })).json();
   assert.ok(!JSON.stringify(p).includes('pw'));
