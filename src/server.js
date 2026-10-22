@@ -1,0 +1,131 @@
+// Copyright (c) 2026 Fido-labs —kcw—
+// Serveur HTTP : /v1/* (passerelle), /api/* (administration), fichiers statiques du tableau de bord.
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { join, extname, normalize, sep } from 'node:path';
+import { ROOT, BRAND, VERSION } from './config.js';
+import { Gateway } from './gateway.js';
+import { handleV1 } from './api/v1.js';
+import { handleAdmin } from './api/admin.js';
+import { sendJson, openaiErrorBody } from './api/http.js';
+
+const PUBLIC_DIR = join(ROOT, 'public');
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
+};
+
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+
+function securityHeaders(res) {
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('x-frame-options', 'DENY');
+  res.setHeader('referrer-policy', 'no-referrer');
+}
+
+function applyCors(gw, req, res) {
+  const origin = req.headers.origin;
+  if (!origin) return;
+  const allowed = gw.settings().corsOrigins;
+  let sameHost = false;
+  try { sameHost = new URL(origin).host === req.headers.host; } catch { /* ignore */ }
+  if (sameHost || allowed.includes('*') || allowed.includes(origin)) {
+    res.setHeader('access-control-allow-origin', allowed.includes('*') && !sameHost ? '*' : origin);
+    res.setHeader('vary', 'Origin');
+    res.setHeader('access-control-allow-methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('access-control-allow-headers', 'authorization,content-type,x-api-key,anthropic-version,anthropic-beta');
+    res.setHeader('access-control-max-age', '600');
+  }
+}
+
+async function serveStatic(req, res, pathname) {
+  let rel = pathname === '/' ? '/index.html' : pathname;
+  rel = normalize(decodeURIComponent(rel));
+  const full = join(PUBLIC_DIR, rel);
+  if (!full.startsWith(PUBLIC_DIR + sep) && full !== PUBLIC_DIR) {
+    res.writeHead(403); res.end(); return;
+  }
+  try {
+    const data = await readFile(full);
+    const type = MIME[extname(full)] ?? 'application/octet-stream';
+    const headers = { 'content-type': type, 'cache-control': 'no-cache' };
+    if (type.startsWith('text/html')) headers['content-security-policy'] = CSP;
+    res.writeHead(200, headers);
+    res.end(req.method === 'HEAD' ? undefined : data);
+  } catch {
+    // SPA : toute route inconnue renvoie l'application
+    try {
+      const data = await readFile(join(PUBLIC_DIR, 'index.html'));
+      res.writeHead(200, { 'content-type': MIME['.html'], 'content-security-policy': CSP, 'cache-control': 'no-cache' });
+      res.end(data);
+    } catch {
+      res.writeHead(404); res.end('Not found');
+    }
+  }
+}
+
+export function createApp(gw) {
+  return http.createServer(async (req, res) => {
+    securityHeaders(res);
+    const ac = new AbortController();
+    res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+    const ctx = { signal: ac.signal };
+    try {
+      const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
+      applyCors(gw, req, res);
+      if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+      if (url.pathname === '/healthz') {
+        sendJson(res, 200, { ok: true, name: BRAND.name, version: VERSION, uptimeSec: Math.round((Date.now() - gw.startedAt) / 1000) });
+        return;
+      }
+      if (url.pathname.startsWith('/v1')) { await handleV1(gw, req, res, url, ctx); return; }
+      if (url.pathname.startsWith('/api/')) { await handleAdmin(gw, req, res, url); return; }
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        sendJson(res, 405, openaiErrorBody(405, 'Méthode non autorisée', 'invalid_request_error'));
+        return;
+      }
+      await serveStatic(req, res, url.pathname);
+    } catch (e) {
+      gw.log({ level: 'error', message: `serveur: ${e?.stack ?? e}` });
+      if (!res.headersSent) sendJson(res, 500, openaiErrorBody(500, 'Erreur interne'));
+      else res.end();
+    }
+  });
+}
+
+/**
+ * Démarre le serveur. Renvoie { server, gw, port, url, close }.
+ * @param {{port?:number, host?:string, dataDir?:string}} opts
+ */
+export async function start({ port, host = '127.0.0.1', dataDir } = {}) {
+  const gw = new Gateway({ dataDir });
+  const creds = gw.ensureCredentials();
+  const server = createApp(gw);
+  server.requestTimeout = 0; // les flux SSE peuvent durer
+  server.headersTimeout = 30_000;
+  server.keepAliveTimeout = 65_000;
+
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port ?? BRAND.defaultPort, host, resolve);
+  });
+  const actualPort = server.address().port;
+  const shown = host === '0.0.0.0' || host === '::' ? 'localhost' : host;
+
+  // Rafraîchit le catalogue en arrière-plan, puis périodiquement.
+  gw.catalog.refresh().catch(() => {});
+  const timer = setInterval(() => { if (gw.catalog.isStale()) gw.catalog.refresh().catch(() => {}); }, 5 * 60_000);
+  timer.unref?.();
+
+  return {
+    server, gw, creds, port: actualPort, url: `http://${shown}:${actualPort}`,
+    close: () => new Promise((resolve) => {
+      clearInterval(timer);
+      gw.close();
+      server.closeAllConnections?.();
+      server.close(() => resolve());
+    }),
+  };
+}

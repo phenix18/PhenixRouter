@@ -1,0 +1,14 @@
+# PhenixRouter — Copyright (c) 2026 Fido-labs —kcw—
+services:
+  phenixrouter:
+    build: .
+    ports:
+      - "127.0.0.1:20128:20128"   # exposez publiquement seulement derrière un proxy TLS
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - phenix-data:/data
+    restart: unless-stopped
+volumes:
+  phenix-data:

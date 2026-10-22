@@ -1,0 +1,15 @@
+PhenixRouter
+Copyright (c) 2026 Fido-labs —kcw—
+
+PhenixRouter est une réécriture indépendante, construite avec la méthode REA
+(Resource-Event-Agent), inspirée du concept de passerelle IA locale illustré par
+le projet open source FlagshipRouter (https://github.com/theRizwan/FlagshipRouter,
+licence MIT, lui-même issu de decolua/9router).
+
+Aucun code source de ces projets n'a été copié : l'architecture, le moteur de
+routage, les traducteurs de format, le tableau de bord et le registre de
+fournisseurs de ce dépôt ont été écrits from scratch.
+
+Les noms de fournisseurs (Groq, OpenRouter, NVIDIA, Cloudflare, etc.) sont des
+marques de leurs propriétaires respectifs. PhenixRouter n'utilise que leurs API
+officielles avec les clés gratuites que vous créez vous-même.

@@ -1,0 +1,86 @@
+// Copyright (c) 2026 Fido-labs —kcw—
+import { h, icon, toast, modal, confirmDialog, statusBadge, ago } from '../dom.js';
+import { t } from '../i18n.js';
+import { api } from '../api.js';
+
+async function addDialog(p) {
+  const key = h('input', { type: 'password', autocomplete: 'off', placeholder: p.keyEnv ?? 'sk-…', 'aria-label': t('prov_key') });
+  const name = h('input', { type: 'text', placeholder: p.name, maxlength: 60 });
+  const base = h('input', { type: 'url', placeholder: 'https://…/v1' });
+  const extra = {};
+  const extras = (p.needs ?? []).map((n) => {
+    const i = h('input', { type: 'text', oninput: (e) => { extra[n] = e.target.value.trim(); } });
+    return h('label', { class: 'lbl' }, n === 'accountId' ? t('prov_account') : n, i);
+  });
+  const limit = h('input', { type: 'number', min: 0, value: 0 });
+  const body = h('div', { class: 'form' },
+    h('label', { class: 'lbl' }, t('prov_name'), name),
+    p.keyless ? null : h('label', { class: 'lbl' }, t('prov_key'), key, h('small', { class: 'muted' }, t('prov_keyHint'))),
+    p.custom ? h('label', { class: 'lbl' }, t('prov_baseUrl'), base) : null, extras,
+    h('label', { class: 'lbl' }, t('prov_dailyLimit'), limit),
+    p.signup ? h('a', { href: p.signup, target: '_blank', rel: 'noopener noreferrer' }, t('prov_getKey'), ' ', icon('external')) : null);
+  return modal(`${t('prov_addKey')} — ${p.name}`, body, { actions: [
+    { label: t('cancel'), value: false },
+    { label: t('add'), primary: true, value: true, onClick: async () => {
+      try {
+        await api('/api/connections', { method: 'POST', body: {
+          provider: p.id, name: name.value.trim() || undefined, apiKey: key.value.trim() || undefined,
+          baseUrl: base.value.trim() || undefined, extra, dailyLimit: Number(limit.value) || 0 } });
+        toast(t('prov_added'), 'ok');
+      } catch (e) { toast(e.message, 'err'); return false; }
+    } }] });
+}
+
+function connRow(c, reload) {
+  const implicit = c.id.startsWith('env:') || c.id.startsWith('auto:');
+  const res = h('span', { class: 'muted' });
+  return h('div', { class: 'conn' },
+    h('div', { class: 'grow' },
+      h('b', null, c.name), ' ', c.keyHint ? h('code', null, c.keyHint) : null, ' ',
+      c.id.startsWith('env:') ? h('span', { class: 'tag' }, 'ENV') : null, c.id.startsWith('auto:') ? h('span', { class: 'tag' }, t('prov_auto')) : null,
+      h('div', { class: 'muted small' },
+        `${c.today ?? 0} ${t('prov_today')}${c.dailyLimit ? ` / ${c.dailyLimit}` : ''}`,
+        c.cooldownLeftMs > 0 ? ` · ${t('prov_cooldown')} ${Math.ceil(c.cooldownLeftMs / 1000)}s` : '',
+        c.health?.lastOkAt ? ` · OK ${ago(c.health.lastOkAt)}` : '', ' ', res)),
+    h('label', { class: 'switch', title: t('statusReady') }, h('input', { type: 'checkbox', checked: c.enabled !== false, onchange: async (e) => {
+      try { await api(`/api/connections/${encodeURIComponent(c.id)}`, { method: 'PATCH', body: { enabled: e.target.checked } }); } catch (err) { toast(err.message, 'err'); e.target.checked = !e.target.checked; }
+    } }), h('i')),
+    h('button', { class: 'btn sm', type: 'button', onclick: async () => {
+      res.textContent = t('prov_testing');
+      try {
+        const r = await api(`/api/connections/${encodeURIComponent(c.id)}/test`, { method: 'POST' });
+        res.textContent = r.ok ? `✓ ${t('prov_testOk')} (${r.models ?? ''} ${r.models != null ? t('prov_models') : ''} ${r.ms} ms)` : `✗ ${r.message ?? t('prov_testFail')}`;
+      } catch (e) { res.textContent = `✗ ${e.message}`; }
+    } }, icon('play'), ' ', t('test')),
+    implicit ? null : h('button', { class: 'btn sm danger', type: 'button', 'aria-label': t('delete'), onclick: async () => {
+      if (!await confirmDialog(t('prov_deleteConfirm'), { danger: true, ok: t('delete') })) return;
+      try { await api(`/api/connections/${encodeURIComponent(c.id)}`, { method: 'DELETE' }); reload(); } catch (e) { toast(e.message, 'err'); }
+    } }, icon('trash')));
+}
+
+export async function render(root, ctx) {
+  const host = h('div', { class: 'stack' });
+  root.append(h('div', { class: 'page-head' }, h('h1', null, t('prov_title')), h('p', null, t('prov_sub'))), host);
+  const load = async () => {
+    const { providers } = await api('/api/providers');
+    host.replaceChildren(...providers.map((p) => h('div', { class: 'card prov' },
+      h('div', { class: 'row between' },
+        h('div', null, h('h3', null, p.name, ' ', statusBadge(p.status),
+          p.keyless ? h('span', { class: 'tag' }, t('prov_keyless')) : null, p.local ? h('span', { class: 'tag' }, t('prov_local')) : null,
+          p.experimental ? h('span', { class: 'tag warn' }, t('prov_experimental')) : null),
+          h('p', { class: 'muted small' }, p.note ?? '', ' ', `${p.modelCount} ${t('prov_models')}`, p.discoveryError ? ` · ⚠ ${p.discoveryError}` : '')),
+        h('div', { class: 'row' },
+          p.signup ? h('a', { class: 'btn sm ghost', href: p.signup, target: '_blank', rel: 'noopener noreferrer' }, t('prov_getKey'), ' ', icon('external')) : null,
+          h('button', { class: 'btn sm primary', type: 'button', onclick: async () => { if (await addDialog(p)) load(); } }, icon('plus'), ' ', t('prov_addKey')))),
+      p.connections.length ? p.connections.map((c) => connRow(c, load)) : h('p', { class: 'muted small' }, t('prov_noConn')))));
+  };
+  await load();
+  ctx.cleanup(subscribe_catalog(load));
+}
+
+import { subscribe } from '../api.js';
+function subscribe_catalog(load) {
+  let timer;
+  const stop = subscribe((ev) => { if (ev.type === 'catalog') { clearTimeout(timer); timer = setTimeout(load, 400); } });
+  return () => { clearTimeout(timer); stop(); };
+}

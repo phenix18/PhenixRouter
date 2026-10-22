@@ -1,0 +1,7 @@
+node_modules/
+.env
+*.log
+.phenixrouter/
+data/
+*.secret
+.secret

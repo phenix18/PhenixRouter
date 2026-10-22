@@ -1,0 +1,9 @@
+{
+  "name": "PhenixRouter",
+  "slug": "phenixrouter",
+  "modelPrefix": "phenix",
+  "tagline": "Des modèles IA gratuits pour tous vos outils",
+  "description": "Passerelle IA locale : une seule API compatible OpenAI et Anthropic vers des modèles gratuits, avec découverte dynamique, bascule automatique et comptabilité REA.",
+  "copyright": "Copyright © 2026 Fido-labs —kcw—",
+  "defaultPort": 20128
+}
