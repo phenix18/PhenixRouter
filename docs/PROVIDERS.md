@@ -43,3 +43,19 @@ Désactivés tant qu'aucune clé n'est ajoutée. Le **mode de coût** (Réglages
 Les prix affichés sont **indicatifs** (USD / million de tokens) et modifiables dans les réglages (`pricing`) ; le coût du grand livre est une estimation, seule la facture du fournisseur fait foi. L'audio (Whisper/TTS) n'est pas chiffré.
 
 Plusieurs clés par fournisseur : séparez-les par des virgules dans la variable, ou ajoutez-les dans le tableau de bord — la rotation est automatique.
+
+## Ajoutés en 1.2.0
+
+Tous désactivés tant qu'aucune clé n'est ajoutée (variables dans `.env.example`).
+
+| Catégorie | Fournisseurs (variable) |
+|---|---|
+| Inférence (compatibles OpenAI) | Codestral (`CODESTRAL_API_KEY`), Chutes, Nebius, Scaleway, Kluster, Baseten, Lambda, Featherless, Venice, AI21, Upstage, Inception, MiniMax, StepFun, Vercel AI Gateway, OpenRouter (compte payant) — `*_API_KEY` |
+| Embeddings / rerank | Jina (`JINA_API_KEY`), Voyage (`VOYAGE_API_KEY`) |
+| Audio | Deepgram STT (`DEEPGRAM_API_KEY`), ElevenLabs TTS (`ELEVENLABS_API_KEY`) |
+| Recherche web | Tavily, Brave, Serper, Linkup, Google PSE (`GOOGLE_PSE_API_KEY` + `GOOGLE_PSE_CX`), Exa — repli gratuit sans clé |
+| Lecture de page | Tavily, Firecrawl (`FIRECRAWL_API_KEY`) — repli gratuit avec garde SSRF |
+| Images | Pollinations (sans clé), Stability (`STABILITY_API_KEY`), fal.ai (`FAL_KEY`), BFL / FLUX (`BFL_API_KEY`), tout endpoint compatible OpenAI |
+| Vidéo | fal.ai, xAI, endpoint personnalisé |
+
+Chaque connexion peut sortir par un **proxy** HTTP/HTTPS dédié ou par le pool (page « Accès & proxys ») ; si ce proxy est indisponible, la requête échoue (jamais de sortie directe).

@@ -37,5 +37,12 @@ Chaque fournisseur a un `tier` (`free` | `paid`). `Gateway.costBlock()` applique
 - `core/legacy.js` — import d'un `config.json` « phenixRouter v3 ».
 - `assets.js` — lecture des fichiers depuis le disque **ou** depuis l'exécutable autonome (Node SEA, `scripts/build-exe.mjs`).
 
+- `core/netfetch.js` — fetch via proxy HTTP/HTTPS (tunnel CONNECT) ; `gateway.fetchFor(conn)` choisit direct / proxy / pool et **échoue fermé**.
+- `core/imagegen.js`, `core/video.js` — images multi-fournisseurs ; vidéo asynchrone (identifiants signés HMAC, suivi sans état).
+- `core/webproviders.js` — recherche / lecture web normalisées avec repli ; `core/audioext.js` — Deepgram, ElevenLabs, voix.
+- `core/modeltypes.js` — catalogues `/v1/models/<type>` et `/v1/models/info`.
+- `core/translate/gemini.js` + `api/gemini.js` — API Gemini native `/v1beta` ; `api/mcp.js` — serveur MCP `/mcp`.
+- `core/clitools.js` — écriture non destructive de la config des outils clients ; `core/tunnel.js` — cloudflared / tailscale (binaires externes).
+
 ## Tests
-`npm test` : 60 tests (REA, traductions, routage, e2e avec faux fournisseur : basculement, flux, cache, sécurité).
+`npm test` : 76 tests (REA, traductions, routage, e2e avec faux fournisseur : basculement, flux, cache, sécurité ; parité : proxys, images, vidéo, web, Gemini, MCP, outils, tunnel).
