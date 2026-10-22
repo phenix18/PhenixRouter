@@ -6,7 +6,8 @@
 //       +-------(COMPLETION: completion tokens)--------+     (dualité économique)
 //
 // Chaque échange crée exactement deux événements liés par `dualityId` :
-//  - REQUEST     (outflow)  : le client consomme du quota fournisseur et envoie des tokens ;
+//  - REQUEST     (outflow)  : le client consomme du quota fournisseur, envoie des tokens et, pour un
+//                             fournisseur payant, engage un coût estimé (resource cost_usd) ;
 //  - COMPLETION  (inflow)   : le fournisseur livre des tokens générés.
 // Un échec produit tout de même une COMPLETION de quantité 0 (statut "error") afin que la
 // dualité reste vérifiable : il n'existe jamais de REQUEST orpheline.
@@ -17,6 +18,7 @@ export const ResourceType = Object.freeze({
   REQUEST_QUOTA: 'request_quota',
   PROMPT_TOKENS: 'prompt_tokens',
   COMPLETION_TOKENS: 'completion_tokens',
+  COST_USD: 'cost_usd', // paiement estimé (fournisseurs payants) : contrepartie monétaire de la dualité
 });
 export const EventType = Object.freeze({ REQUEST: 'REQUEST', COMPLETION: 'COMPLETION' });
 export const Direction = Object.freeze({ OUTFLOW: 'outflow', INFLOW: 'inflow' });
@@ -52,6 +54,7 @@ export function exchangeEvents(x) {
       resources: [
         { type: ResourceType.REQUEST_QUOTA, qty: x.cached ? 0 : 1 },
         { type: ResourceType.PROMPT_TOKENS, qty: tokensIn },
+        ...(x.costUsd > 0 ? [{ type: ResourceType.COST_USD, qty: Math.round(x.costUsd * 1e8) / 1e8 }] : []),
       ],
       meta,
     },

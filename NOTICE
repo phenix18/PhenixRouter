@@ -13,3 +13,7 @@ fournisseurs de ce dépôt ont été écrits from scratch.
 Les noms de fournisseurs (Groq, OpenRouter, NVIDIA, Cloudflare, etc.) sont des
 marques de leurs propriétaires respectifs. PhenixRouter n'utilise que leurs API
 officielles avec les clés gratuites que vous créez vous-même.
+
+Le projet reprend aussi les idées fonctionnelles du paquet « phenixRouter v3.0 EXE-BUILDER » (proxy Python
+fourni par l'auteur : synchro des modèles gratuits, CLI list/models/status, construction d'un .exe,
+installeurs, import de config.json). Aucune clé ni mot de passe par défaut n'est repris.

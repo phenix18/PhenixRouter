@@ -11,7 +11,11 @@
 import { BRAND } from '../config.js';
 import { getProvider } from '../providers/registry.js';
 
-export const VIRTUAL = ['auto', 'fast', 'smart', 'code', 'vision', 'reasoning', 'embed'];
+// free = uniquement des modèles gratuits ; best = meilleure qualité tous tarifs confondus (selon le mode de coût).
+export const VIRTUAL = ['auto', 'fast', 'smart', 'code', 'vision', 'reasoning', 'embed', 'free', 'best'];
+
+// Noms hérités / compatibles (ex. config.json de phenixRouter v3).
+const BUILTIN_ALIASES = { 'phenixrouter-free': 'free', phenixrouter: 'auto' };
 
 export function parseModel(str) {
   const s = String(str);
@@ -54,7 +58,10 @@ function dedupe(targets) {
 /** Chaîne dynamique : filtre par capacité, classe par qualité/latence, diversifie les fournisseurs. */
 export function autoChain(gw, mode, { needTools = false, needVision = false } = {}) {
   const embedding = mode === 'embed';
-  const ready = gw.catalog.list().filter((e) => e.status === 'ready');
+  const costMode = gw.settings().costMode;
+  // `free` force le gratuit ; sinon on exclut les fournisseurs payants bloqués (mode gratuit seul, budget épuisé).
+  const ready = gw.catalog.list().filter((e) => e.status === 'ready'
+    && (mode === 'free' ? e.tier !== 'paid' : !(e.tier === 'paid' && gw.costBlock(e.provider))));
   const has = (e, tag) => e.tags.includes(tag);
   let pool = ready.filter((e) => (embedding ? has(e, 'embedding') : has(e, 'chat')));
   const strict = (list) => list.filter((e) => (!needTools || has(e, 'tools')) && (!needVision || has(e, 'vision')));
@@ -67,6 +74,8 @@ export function autoChain(gw, mode, { needTools = false, needVision = false } = 
     if (tagged.length) filtered = tagged;
   }
 
+  // « gratuit d'abord » : tous les gratuits avant le moindre payant (sauf `best`, qui classe par qualité seule).
+  const tierRank = (e) => (costMode === 'any' || mode === 'best' || e.tier !== 'paid' ? 0 : 1);
   const speedRank = { local: 0, fast: 1, medium: 2, slow: 3 };
   const latencyPenalty = (e) => Math.min(30, (e.latencyMs ?? 900) / 200);
   let sorted;
@@ -80,6 +89,7 @@ export function autoChain(gw, mode, { needTools = false, needVision = false } = 
   } else {
     sorted = [...filtered].sort((a, b) => (b.quality - latencyPenalty(b)) - (a.quality - latencyPenalty(a)));
   }
+  sorted = sorted.sort((a, b) => tierRank(a) - tierRank(b)); // tri stable : conserve l'ordre qualité/vitesse
 
   const size = gw.settings().autoChainSize;
   const perProvider = new Map();
@@ -108,7 +118,8 @@ export function resolveTargets(gw, requested, opts = {}) {
     if (name.toLowerCase().startsWith(prefix)) name = name.slice(prefix.length);
   }
 
-  const lower = name.toLowerCase();
+  let lower = name.toLowerCase();
+  if (BUILTIN_ALIASES[lower] && !gw.db.combos.some((c) => c.name.toLowerCase() === lower)) { lower = BUILTIN_ALIASES[lower]; name = lower; }
   const combo = gw.db.combos.find((c) => c.name.toLowerCase() === lower);
   if (combo) {
     let targets = dedupe(combo.models.flatMap((m) => expandEntry(gw, m)));

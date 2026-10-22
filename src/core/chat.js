@@ -3,6 +3,7 @@
 import { resolveTargets } from './router.js';
 import { callUpstream, RouterError, ClientAbort } from './dispatch.js';
 import { ResponseCache } from './cache.js';
+import { saveTokens } from './tokensaver.js';
 
 export const estimateTokens = (value) => {
   if (value == null) return 0;
@@ -26,6 +27,8 @@ function lastProvider(attempts) {
  */
 export async function runChat(gw, body, ctx) {
   const settings = gw.settings();
+  let savedChars = 0;
+  if (settings.tokenSaver) ({ body, savedChars } = saveTokens(body, settings.tokenSaverMaxChars));
   const stream = !!body.stream;
   const needTools = !!body.tools?.length;
   const needVision = hasImages(body.messages);
@@ -70,7 +73,7 @@ export async function runChat(gw, body, ctx) {
   const meta = {
     provider: result.provider.id, model: result.model, served, connection: result.conn.name,
     connectionId: result.conn.id, kind: resolved.kind, requested: ctx.requestedModel,
-    attempts: result.attempts.length + 1, cached: false,
+    attempts: result.attempts.length + 1, cached: false, tokensSaved: Math.round(savedChars / 4),
   };
   const exchange = {
     ...base, provider: result.provider.id, model: served, connection: result.conn.id,

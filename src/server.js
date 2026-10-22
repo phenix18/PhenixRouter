@@ -1,15 +1,14 @@
 // Copyright (c) 2026 Fido-labs —kcw—
 // Serveur HTTP : /v1/* (passerelle), /api/* (administration), fichiers statiques du tableau de bord.
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { join, extname, normalize, sep } from 'node:path';
-import { ROOT, BRAND, VERSION } from './config.js';
+import { posix } from 'node:path';
+import { BRAND, VERSION } from './config.js';
+import { readAsset } from './assets.js';
 import { Gateway } from './gateway.js';
 import { handleV1 } from './api/v1.js';
 import { handleAdmin } from './api/admin.js';
 import { sendJson, openaiErrorBody } from './api/http.js';
 
-const PUBLIC_DIR = join(ROOT, 'public');
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json; charset=utf-8',
@@ -40,15 +39,12 @@ function applyCors(gw, req, res) {
 }
 
 async function serveStatic(req, res, pathname) {
-  let rel = pathname === '/' ? '/index.html' : pathname;
-  rel = normalize(decodeURIComponent(rel));
-  const full = join(PUBLIC_DIR, rel);
-  if (!full.startsWith(PUBLIC_DIR + sep) && full !== PUBLIC_DIR) {
-    res.writeHead(403); res.end(); return;
-  }
+  let rel;
+  try { rel = posix.normalize(decodeURIComponent(pathname === '/' ? '/index.html' : pathname)); } catch { res.writeHead(400); res.end(); return; }
+  if (rel.includes('..') || rel.includes('\0') || rel.includes('\\')) { res.writeHead(403); res.end(); return; }
   try {
-    const data = await readFile(full);
-    const type = MIME[extname(full)] ?? 'application/octet-stream';
+    const data = readAsset(`public${rel}`);
+    const type = MIME[posix.extname(rel)] ?? 'application/octet-stream';
     const headers = { 'content-type': type, 'cache-control': 'no-cache' };
     if (type.startsWith('text/html')) headers['content-security-policy'] = CSP;
     res.writeHead(200, headers);
@@ -56,9 +52,8 @@ async function serveStatic(req, res, pathname) {
   } catch {
     // SPA : toute route inconnue renvoie l'application
     try {
-      const data = await readFile(join(PUBLIC_DIR, 'index.html'));
       res.writeHead(200, { 'content-type': MIME['.html'], 'content-security-policy': CSP, 'cache-control': 'no-cache' });
-      res.end(data);
+      res.end(readAsset('public/index.html'));
     } catch {
       res.writeHead(404); res.end('Not found');
     }
@@ -76,8 +71,12 @@ export function createApp(gw) {
       applyCors(gw, req, res);
       if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-      if (url.pathname === '/healthz') {
-        sendJson(res, 200, { ok: true, name: BRAND.name, version: VERSION, uptimeSec: Math.round((Date.now() - gw.startedAt) / 1000) });
+      if (url.pathname === '/healthz' || url.pathname === '/health') {
+        const conns = gw.connections().filter((c) => c.enabled);
+        sendJson(res, 200, {
+          ok: true, status: 'ok', name: BRAND.name, version: VERSION, uptimeSec: Math.round((Date.now() - gw.startedAt) / 1000),
+          connections: conns.length, modelsReady: gw.catalog.list().filter((m) => m.status === 'ready').length, costMode: gw.settings().costMode,
+        });
         return;
       }
       if (url.pathname.startsWith('/v1')) { await handleV1(gw, req, res, url, ctx); return; }

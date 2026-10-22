@@ -6,6 +6,7 @@ import { PROVIDERS, getProvider } from '../providers/registry.js';
 import { discoverModels, staticModels } from '../providers/discovery.js';
 import { probeConnection } from '../core/dispatch.js';
 import { runChat } from '../core/chat.js';
+import { importLegacyConfig } from '../core/legacy.js';
 import {
   readJson, sendJson, parseCookies, clientIp,
 } from './http.js';
@@ -49,7 +50,7 @@ function providerRows(gw) {
   const errors = gw.catalog.providerErrors();
   return PROVIDERS.map((p) => ({
     id: p.id, alias: p.alias, name: p.name, note: p.note, signup: p.signup, keyless: !!p.keyless, local: !!p.local,
-    custom: !!p.custom, experimental: !!p.experimental, needs: p.needs ?? [], keyEnv: p.keyEnv ?? null, speed: p.speed,
+    custom: !!p.custom, experimental: !!p.experimental, tier: p.tier, needs: p.needs ?? [], keyEnv: p.keyEnv ?? null, speed: p.speed,
     status: gw.catalog.providerStatus(p.id),
     modelCount: catalog.filter((m) => m.provider === p.id).length,
     discoveryError: errors[p.id] ?? null,
@@ -72,6 +73,8 @@ function overview(gw) {
       combos: gw.db.combos.length,
       apiKeys: gw.db.apiKeys.length,
     },
+    spend: gw.spend(),
+    costMode: gw.settings().costMode,
     last24h: gw.ledger.summary({ sinceMs: 24 * 3600 * 1000 }),
     last7d: gw.ledger.summary({ sinceMs: 7 * 24 * 3600 * 1000 }),
     cache: gw.cache.stats(),
@@ -160,6 +163,15 @@ export async function handleAdmin(gw, req, res, url) {
         sendJson(res, 200, { ok: true });
         return;
       }
+    }
+
+    /* ── Import d'un config.json « phenixRouter v3 » (proxy Python) ── */
+    if (route === 'POST /api/import/legacy') {
+      const cfg = await readJson(req, 1024 * 1024);
+      const out = importLegacyConfig(gw, cfg);
+      if (out.imported) gw.catalog.refresh({ force: true }).catch(() => {});
+      sendJson(res, 200, out);
+      return;
     }
 
     /* ── Modèles ── */

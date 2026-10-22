@@ -21,6 +21,19 @@ export async function readJson(req, limit = 10 * 1024 * 1024) {
   }
 }
 
+export async function readRaw(req, limit = 26 * 1024 * 1024) {
+  const len = Number(req.headers['content-length'] ?? 0);
+  if (len > limit) throw httpError(413, 'Fichier trop volumineux (25 Mo max)');
+  const chunks = [];
+  let size = 0;
+  for await (const c of req) {
+    size += c.length;
+    if (size > limit) throw httpError(413, 'Fichier trop volumineux (25 Mo max)');
+    chunks.push(c);
+  }
+  return Buffer.concat(chunks);
+}
+
 export function sendJson(res, status, obj, headers = {}) {
   if (res.headersSent) return;
   const body = JSON.stringify(obj);

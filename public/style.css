@@ -246,3 +246,4 @@ pre.code { margin: 6px 0 12px; padding: 12px 14px; background: var(--bg); border
 .switch input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
 .badge.err { color: var(--err); }
 @media (max-width: 720px) { .hrow { grid-template-columns: 80px 1fr auto; } .grid.two { grid-template-columns: 1fr; } }
+h2.group { margin: 18px 0 2px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }

@@ -19,7 +19,9 @@ export async function render(root, ctx) {
     return { key, el: h('label', { class: 'lbl' }, t(label), i), get: () => (multi ? i.value.split('\n').map((x) => x.trim()).filter(Boolean) : i.value.trim()) };
   };
   const language = h('select', null, [['fr', 'Français'], ['en', 'English']].map(([v, n]) => h('option', { value: v, selected: lang() === v }, n)));
+  const costMode = h('select', null, [['freeOnly', 'set_costFreeOnly'], ['freeFirst', 'set_costFreeFirst'], ['any', 'set_costAny']].map(([v, k]) => h('option', { value: v, selected: s.costMode === v }, t(k))));
   const fields = [
+    num('dailyBudgetUsd', 'set_dailyBudget', 0, 1e6), num('monthlyBudgetUsd', 'set_monthlyBudget', 0, 1e7), chk('tokenSaver', 'set_tokenSaver'), num('tokenSaverMaxChars', 'set_tokenSaverMax', 500, 200000),
     chk('requireApiKey', 'set_requireKey'), chk('webTools', 'set_webTools'), txt('searxngUrl', 'set_searx'), num('autoChainSize', 'set_chain', 1, 20),
     num('catalogTtlMin', 'set_catalog', 1, 1440), num('firstByteTimeoutMs', 'set_firstByte', 1000), num('streamIdleTimeoutMs', 'set_stream', 1000),
     num('requestTimeoutMs', 'set_total', 1000), num('maxAttemptsPerRequest', 'set_attempts', 1, 30), chk('cacheEnabled', 'set_cacheOn'),
@@ -29,6 +31,7 @@ export async function render(root, ctx) {
     try {
       const body = Object.fromEntries(fields.map((f) => [f.key, f.get()]));
       body.language = language.value;
+      body.costMode = costMode.value;
       await api('/api/settings', { method: 'PUT', body });
       setLang(language.value);
       toast(t('saved'), 'ok');
@@ -44,7 +47,7 @@ export async function render(root, ctx) {
   };
 
   root.append(h('div', { class: 'page-head' }, h('h1', null, t('set_title')), h('p', null, t('set_sub'))),
-    h('div', { class: 'card form' }, h('h3', null, t('set_general')), h('label', { class: 'lbl' }, t('set_language'), language), fields.map((f) => f.el),
+    h('div', { class: 'card form' }, h('h3', null, t('set_general')), h('label', { class: 'lbl' }, t('set_language'), language), h('label', { class: 'lbl' }, t('set_costMode'), costMode), h('p', { class: 'muted small' }, t('set_costNote')), fields.map((f) => f.el),
       h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'button', onclick: save }, t('save')))),
     h('div', { class: 'card form' }, h('h3', null, t('set_password')),
       h('label', { class: 'lbl' }, t('set_current'), cur), h('label', { class: 'lbl' }, t('set_new'), next),
@@ -56,6 +59,15 @@ export async function render(root, ctx) {
           const r = await api('/api/ledger/verify');
           toast(`${r.ok ? t('ov_reaOk') : t('ov_reaBad')} — ${r.exchanges} ${t('ov_exchanges')}`, r.ok ? 'ok' : 'err');
         } }, t('set_verify')),
-        h('a', { class: 'btn', href: '/api/export', download: 'phenixrouter-config.json' }, t('set_export'))),
+        h('a', { class: 'btn', href: '/api/export', download: 'phenixrouter-config.json' }, t('set_export')),
+        h('label', { class: 'btn' }, t('set_import'), h('input', { type: 'file', accept: 'application/json,.json', style: 'display:none', onchange: async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try {
+            const r = await api('/api/import/legacy', { method: 'POST', body: JSON.parse(await file.text()) });
+            toast(`${r.imported} ${t('set_importDone')}, ${r.skipped.length} ${t('set_importSkipped')}`, r.imported ? 'ok' : '');
+          } catch (err) { toast(err.message, 'err'); }
+          e.target.value = '';
+        } }))),
       h('p', { class: 'muted small' }, t('set_exportNote')), h('p', { class: 'muted small' }, t('copyright'))));
 }

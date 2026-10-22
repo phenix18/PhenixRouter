@@ -15,6 +15,7 @@ export const PROVIDERS = [
     signup: 'https://console.groq.com/keys',
     note: 'Offre gratuite, très rapide (limites par minute et par jour).',
     discovery: 'openai', speed: 'fast', priority: 10,
+    audio: { stt: 'whisper-large-v3-turbo' },
     models: [
       m('llama-3.3-70b-versatile', { ctx: 131072 }),
       m('llama-3.1-8b-instant', { ctx: 131072 }),
@@ -218,15 +219,134 @@ export const PROVIDERS = [
     discovery: 'openai', speed: 'local', priority: 71,
     models: [],
   },
+
+  /* ───────── Fournisseurs PAYANTS (clé API facturée par le fournisseur) ─────────
+     Désactivés tant qu'aucune clé n'est ajoutée. Le mode de coût (réglages) décide s'ils sont
+     utilisés : « gratuit seul », « gratuit d'abord » (défaut) ou « tout ». */
+  {
+    id: 'openai', alias: 'oa', name: 'OpenAI (payant)', tier: 'paid',
+    baseUrl: 'https://api.openai.com/v1', keyEnv: 'OPENAI_API_KEY',
+    signup: 'https://platform.openai.com/api-keys',
+    note: 'API payante à l’usage (GPT, o-series, embeddings, Whisper, TTS).',
+    discovery: 'openai', speed: 'medium', priority: 40,
+    audio: { stt: 'whisper-1', tts: 'tts-1' },
+    models: [
+      m('gpt-4.1-mini', { ctx: 1047576, tags: ['tools', 'vision'] }),
+      m('gpt-4.1', { ctx: 1047576, tags: ['tools', 'vision'] }),
+      m('gpt-4o-mini', { ctx: 128000, tags: ['tools', 'vision'] }),
+      m('gpt-4o', { ctx: 128000, tags: ['tools', 'vision'] }),
+      m('o4-mini', { ctx: 200000, tags: ['reasoning', 'tools'] }),
+      m('text-embedding-3-small', { tags: ['embedding'] }),
+    ],
+  },
+  {
+    id: 'anthropic', alias: 'an', name: 'Anthropic Claude (payant)', tier: 'paid',
+    baseUrl: 'https://api.anthropic.com/v1', keyEnv: 'ANTHROPIC_API_KEY',
+    signup: 'https://console.anthropic.com/settings/keys',
+    note: 'Claude via l’API payante d’Anthropic (couche de compatibilité OpenAI).',
+    discovery: 'static', speed: 'medium', priority: 41,
+    extraHeaders: { 'anthropic-version': '2023-06-01' },
+    dropParams: ['store', 'service_tier', 'logit_bias', 'logprobs', 'top_logprobs', 'stream_options'],
+    models: [
+      m('claude-sonnet-4-5', { ctx: 200000, tags: ['tools', 'vision', 'code', 'reasoning'] }),
+      m('claude-haiku-4-5', { ctx: 200000, tags: ['tools', 'vision', 'small'] }),
+      m('claude-opus-4-1', { ctx: 200000, tags: ['tools', 'vision', 'code', 'reasoning', 'large'] }),
+    ],
+  },
+  {
+    id: 'deepseek', alias: 'ds', name: 'DeepSeek (payant, très bon marché)', tier: 'paid',
+    baseUrl: 'https://api.deepseek.com/v1', keyEnv: 'DEEPSEEK_API_KEY',
+    signup: 'https://platform.deepseek.com/api_keys',
+    note: 'Très bon rapport qualité/prix, raisonnement et code.',
+    discovery: 'openai', speed: 'medium', priority: 42,
+    models: [
+      m('deepseek-chat', { ctx: 65536, tags: ['tools', 'code'] }),
+      m('deepseek-reasoner', { ctx: 65536, tags: ['reasoning'] }),
+    ],
+  },
+  {
+    id: 'xai', alias: 'xa', name: 'xAI Grok (payant)', tier: 'paid',
+    baseUrl: 'https://api.x.ai/v1', keyEnv: 'XAI_API_KEY',
+    signup: 'https://console.x.ai/',
+    note: 'Modèles Grok.',
+    discovery: 'openai', speed: 'medium', priority: 43,
+    models: [
+      m('grok-4', { ctx: 256000, tags: ['tools', 'reasoning', 'vision'] }),
+      m('grok-3-mini', { ctx: 131072, tags: ['tools', 'reasoning', 'small'] }),
+      m('grok-code-fast-1', { ctx: 256000, tags: ['tools', 'code'] }),
+    ],
+  },
+  {
+    id: 'perplexity', alias: 'px', name: 'Perplexity Sonar (payant)', tier: 'paid',
+    baseUrl: 'https://api.perplexity.ai', keyEnv: 'PERPLEXITY_API_KEY',
+    signup: 'https://www.perplexity.ai/settings/api',
+    note: 'Modèles avec recherche web intégrée (citations).',
+    discovery: 'static', speed: 'medium', priority: 44,
+    dropParams: ['tools', 'tool_choice', 'store', 'service_tier', 'logit_bias'],
+    models: [
+      m('sonar', { ctx: 127000 }), m('sonar-pro', { ctx: 200000 }), m('sonar-reasoning', { ctx: 127000, tags: ['reasoning'] }),
+    ],
+  },
+  {
+    id: 'fireworks', alias: 'fw', name: 'Fireworks AI (payant)', tier: 'paid',
+    baseUrl: 'https://api.fireworks.ai/inference/v1', keyEnv: 'FIREWORKS_API_KEY',
+    signup: 'https://fireworks.ai/account/api-keys',
+    note: 'Modèles ouverts hébergés, rapides.',
+    discovery: 'openai', speed: 'fast', priority: 45,
+    models: [m('accounts/fireworks/models/llama-v3p3-70b-instruct', { ctx: 131072, tags: ['tools'] })],
+  },
+  {
+    id: 'deepinfra', alias: 'di', name: 'DeepInfra (payant)', tier: 'paid',
+    baseUrl: 'https://api.deepinfra.com/v1/openai', keyEnv: 'DEEPINFRA_API_KEY',
+    signup: 'https://deepinfra.com/dash/api_keys',
+    note: 'Modèles ouverts à bas prix.',
+    discovery: 'openai', speed: 'medium', priority: 46,
+    models: [m('meta-llama/Llama-3.3-70B-Instruct', { ctx: 131072, tags: ['tools'] })],
+  },
+  {
+    id: 'hyperbolic', alias: 'hy', name: 'Hyperbolic (payant)', tier: 'paid',
+    baseUrl: 'https://api.hyperbolic.xyz/v1', keyEnv: 'HYPERBOLIC_API_KEY',
+    signup: 'https://app.hyperbolic.xyz/settings',
+    note: 'Inférence ouverte à bas prix.',
+    discovery: 'openai', speed: 'medium', priority: 47,
+    models: [m('meta-llama/Llama-3.3-70B-Instruct', { ctx: 131072 })],
+  },
+  {
+    id: 'novita', alias: 'nt', name: 'Novita AI (payant)', tier: 'paid',
+    baseUrl: 'https://api.novita.ai/v3/openai', keyEnv: 'NOVITA_API_KEY',
+    signup: 'https://novita.ai/settings/key-management',
+    note: 'Modèles ouverts hébergés.',
+    discovery: 'openai', speed: 'medium', priority: 48,
+    models: [m('meta-llama/llama-3.3-70b-instruct', { ctx: 131072 })],
+  },
+  {
+    id: 'moonshot', alias: 'ms', name: 'Moonshot Kimi (payant)', tier: 'paid',
+    baseUrl: 'https://api.moonshot.ai/v1', keyEnv: 'MOONSHOT_API_KEY',
+    signup: 'https://platform.moonshot.ai/console/api-keys',
+    note: 'Kimi K2, fort en code agentique.',
+    discovery: 'openai', speed: 'medium', priority: 49,
+    models: [m('kimi-k2-0905-preview', { ctx: 262144, tags: ['tools', 'code'] })],
+  },
+  {
+    id: 'dashscope', alias: 'qw', name: 'Alibaba Qwen / DashScope (payant)', tier: 'paid',
+    baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', keyEnv: 'DASHSCOPE_API_KEY',
+    signup: 'https://bailian.console.alibabacloud.com/',
+    note: 'Qwen (Max/Plus/Turbo, Coder).',
+    discovery: 'openai', speed: 'medium', priority: 50,
+    models: [m('qwen-plus', { ctx: 131072, tags: ['tools'] }), m('qwen3-coder-plus', { ctx: 262144, tags: ['tools', 'code'] })],
+  },
   {
     id: 'custom', alias: 'cu', name: 'Endpoint compatible OpenAI (personnalisé)',
     baseUrl: '', custom: true, local: true, optionalKey: true,
     signup: '',
     note: 'vLLM, llama.cpp, LiteLLM, proxy d’entreprise… renseignez l’URL de base.',
     discovery: 'openai', speed: 'local', priority: 80,
+    audio: {},
     models: [],
   },
 ];
+
+for (const p of PROVIDERS) p.tier ??= 'free';
 
 const byId = new Map();
 for (const p of PROVIDERS) {

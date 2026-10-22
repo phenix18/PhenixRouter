@@ -1,6 +1,6 @@
 {
   "name": "phenixrouter",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "PhenixRouter — passerelle IA locale : une seule API compatible OpenAI/Anthropic vers des modèles gratuits, avec découverte dynamique, bascule automatique et comptabilité REA.",
   "type": "module",
   "main": "src/server.js",
@@ -10,12 +10,26 @@
   "scripts": {
     "start": "node bin/phenixrouter.js",
     "dev": "node --watch bin/phenixrouter.js",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "build:exe": "node scripts/build-exe.mjs",
+    "build:exe:win": "node scripts/build-exe.mjs --target win-x64",
+    "build:exe:linux": "node scripts/build-exe.mjs --target linux-x64",
+    "build:exe:mac": "node scripts/build-exe.mjs --target darwin-arm64"
   },
   "engines": {
     "node": ">=20.9"
   },
-  "keywords": ["llm", "router", "gateway", "openai", "anthropic", "free", "groq", "openrouter", "rea"],
+  "keywords": [
+    "llm",
+    "router",
+    "gateway",
+    "openai",
+    "anthropic",
+    "free",
+    "groq",
+    "openrouter",
+    "rea"
+  ],
   "author": "Fido-labs —kcw—",
   "license": "MIT",
   "dependencies": {}

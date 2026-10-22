@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { PROVIDERS, getProvider } from '../providers/registry.js';
 import { discoverModels, staticModels } from '../providers/discovery.js';
 import { quality } from '../providers/tags.js';
+import { priceOf } from '../providers/pricing.js';
 
 export class Catalog {
   constructor(gw) {
@@ -102,7 +103,9 @@ export class Catalog {
       const useLive = live?.models?.length && status !== 'connect';
       const models = useLive ? live.models : staticModels(p);
       const score = this.gw.providerScore(p.id);
+      const overrides = this.gw.settings().pricing;
       for (const m of models) {
+        const price = p.tier === 'paid' ? priceOf(p.id, m.model, overrides) : null;
         out.push({
           id: `${p.id}/${m.model}`,
           provider: p.id,
@@ -116,6 +119,8 @@ export class Catalog {
           quality: quality(m.model),
           latencyMs: Number.isFinite(score) ? score : null,
           speed: p.speed,
+          tier: p.tier,
+          price: price ? { in: price.in, out: price.out, known: price.known } : null,
         });
       }
     }

@@ -35,7 +35,7 @@ function prepareBody(provider, body, model) {
   return b;
 }
 
-function classify(status, text, headers) {
+export function classify(status, text, headers) {
   const lower = text.toLowerCase();
   const retryMs = parseRetryAfter(headers, text);
   if (status === 429) {
@@ -52,7 +52,7 @@ function classify(status, text, headers) {
   return { kind: 'client', retryMs, switchTarget: false };
 }
 
-function shortError(text) {
+export function shortError(text) {
   try {
     const j = JSON.parse(text);
     return String(j?.error?.message ?? j?.message ?? j?.error ?? text).slice(0, 240);
@@ -138,10 +138,17 @@ export async function callUpstream(gw, targets, spec) {
   let tried = 0;
   let lastClient = null;
 
+  let blocked = null;
   outer:
   for (const target of targets) {
     const provider = getProvider(target.provider);
     if (!provider) continue;
+    const costReason = gw.costBlock(provider.id);
+    if (costReason) {
+      blocked ??= costReason;
+      attempts.push({ provider: provider.id, model: target.model, skipped: 'cost', message: costReason });
+      continue;
+    }
     const conns = gw.usableConnections(provider.id);
     if (!conns.length) {
       attempts.push({ provider: provider.id, model: target.model, skipped: gw.configuredConnections(provider.id).length ? 'cooldown' : 'no_key' });
@@ -227,12 +234,19 @@ export async function callUpstream(gw, targets, spec) {
   }
 
   const real = attempts.filter((a) => !a.skipped);
+  if (!real.length && blocked && attempts.every((a) => a.skipped === 'cost')) {
+    throw new RouterError(
+      403,
+      `Fournisseur payant refusé : ${blocked}. Changez le mode de coût dans les réglages ou demandez un modèle gratuit (phenix/free).`,
+      'cost_policy', attempts,
+    );
+  }
   if (!real.length) {
     const noKey = attempts.some((a) => a.skipped === 'no_key');
     throw new RouterError(
       503,
       attempts.length
-        ? `Aucun fournisseur disponible (${noKey ? 'clé manquante' : 'en pause après erreurs'}). Ajoutez une clé gratuite dans le tableau de bord.`
+        ? `Aucun fournisseur disponible (${noKey ? 'clé manquante' : 'en pause après erreurs'}). Ajoutez une clé (gratuite ou payante) dans le tableau de bord.`
         : 'Aucun modèle ne correspond à la demande. Vérifiez le nom du modèle ou ajoutez un fournisseur.',
       'no_provider', attempts,
     );

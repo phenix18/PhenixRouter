@@ -1,13 +1,12 @@
 // Copyright (c) 2026 Fido-labs —kcw—
 // PhenixRouter — configuration et marque (source unique : brand.json)
-import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { ROOT, IS_SEA, readAsset } from './assets.js';
 
-export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-export const BRAND = JSON.parse(readFileSync(join(ROOT, 'brand.json'), 'utf8'));
-export const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+export { ROOT, IS_SEA };
+export const BRAND = JSON.parse(readAsset('brand.json').toString('utf8'));
+export const VERSION = JSON.parse(readAsset('package.json').toString('utf8')).version;
 
 export function resolveDataDir(override) {
   return override || process.env.PHENIX_DATA_DIR || join(homedir(), `.${BRAND.slug}`);
@@ -31,6 +30,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
   webTools: true,
   searxngUrl: '',
   autoChainSize: 6,
+  costMode: 'freeFirst',      // freeOnly | freeFirst | any
+  dailyBudgetUsd: 0,          // 0 = illimité (ne limite que les fournisseurs payants)
+  monthlyBudgetUsd: 0,
+  pricing: {},                // surcharges de prix : { "openai/gpt-4o": { in: 2.5, out: 10 } } (USD / M tokens)
+  tokenSaver: false,          // compresse les gros résultats d'outils avant l'envoi
+  tokenSaverMaxChars: 6000,
 });
 
 export const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));

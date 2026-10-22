@@ -73,6 +73,7 @@ export class Ledger {
         connection: req.meta.connection,
         tokensIn: qty(req, ResourceType.PROMPT_TOKENS),
         tokensOut: qty(e, ResourceType.COMPLETION_TOKENS),
+        costUsd: qty(req, ResourceType.COST_USD),
         ms: req.meta.ms,
         status: req.meta.status,
         cached: req.meta.cached,
@@ -116,6 +117,17 @@ export class Ledger {
     return this.exchanges.slice(-limit).reverse();
   }
 
+  /** Dépense estimée (USD) depuis `sinceTs`. */
+  spendSince(sinceTs) {
+    let sum = 0;
+    for (let i = this.exchanges.length - 1; i >= 0; i -= 1) {
+      const ex = this.exchanges[i];
+      if (ex.ts < sinceTs) break;
+      sum += ex.costUsd ?? 0;
+    }
+    return sum;
+  }
+
   verifyDuality() {
     return checkDuality(this.events);
   }
@@ -141,7 +153,7 @@ export class Ledger {
 }
 
 function blank() {
-  return { requests: 0, ok: 0, errors: 0, cached: 0, tokensIn: 0, tokensOut: 0, msSum: 0 };
+  return { requests: 0, ok: 0, errors: 0, cached: 0, tokensIn: 0, tokensOut: 0, msSum: 0, costUsd: 0 };
 }
 function add(a, ex) {
   a.requests += 1;
@@ -150,10 +162,11 @@ function add(a, ex) {
   a.tokensIn += ex.tokensIn;
   a.tokensOut += ex.tokensOut;
   if (!ex.cached) a.msSum += ex.ms;
+  a.costUsd += ex.costUsd ?? 0;
 }
 function fin(a) {
   const live = a.requests - a.cached;
-  return { ...a, avgMs: live > 0 ? Math.round(a.msSum / live) : 0 };
+  return { ...a, costUsd: Math.round(a.costUsd * 1e6) / 1e6, avgMs: live > 0 ? Math.round(a.msSum / live) : 0 };
 }
 function finAll(map) {
   return Object.fromEntries(Object.entries(map).map(([k, v]) => [k, fin(v)]));

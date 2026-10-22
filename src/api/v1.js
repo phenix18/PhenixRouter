@@ -5,10 +5,11 @@ import { once } from 'node:events';
 import { BRAND } from '../config.js';
 import { httpError } from '../gateway.js';
 import {
-  readJson, sendJson, openaiErrorBody, parseCookies, bearer,
+  readJson, readRaw, sendJson, openaiErrorBody, parseCookies, bearer,
 } from './http.js';
 import { runChat, estimateTokens, RouterError, ClientAbort } from '../core/chat.js';
 import { runEmbeddings, runImages } from '../core/media.js';
+import { runAudio } from '../core/audio.js';
 import { webSearch, webFetch } from '../core/webtools.js';
 import { VIRTUAL } from '../core/router.js';
 import {
@@ -174,6 +175,7 @@ function listModels(gw, all) {
     data.push({
       id: e.id, object: 'model', created, owned_by: e.provider, kind: 'model', name: e.name,
       context_length: e.ctx, tags: e.tags, status: e.status, source: e.source,
+      free: e.tier !== 'paid', tier: e.tier, ...(e.price ? { pricing_usd_per_mtok: { input: e.price.in, output: e.price.out } } : {}),
     });
   }
   return { object: 'list', data };
@@ -211,6 +213,15 @@ export async function handleV1(gw, req, res, url, ctx) {
         const body = await readJson(req);
         const { json, served } = await runEmbeddings(gw, body, { client: client.name, signal: ctx.signal });
         sendJson(res, 200, json, { 'x-phenix-model': served }); return;
+      }
+      case 'POST /v1/audio/transcriptions':
+      case 'POST /v1/audio/translations':
+      case 'POST /v1/audio/speech': {
+        const kind = path.split('/').pop();
+        const raw = await readRaw(req);
+        const out = await runAudio(gw, kind, { body: raw, contentType: String(req.headers['content-type'] ?? ''), client: client.name, signal: ctx.signal });
+        res.writeHead(out.status, { 'content-type': out.contentType, 'content-length': out.body.length, 'x-phenix-model': out.served, 'cache-control': 'no-store' });
+        res.end(out.body); return;
       }
       case 'POST /v1/images/generations': {
         const body = await readJson(req);

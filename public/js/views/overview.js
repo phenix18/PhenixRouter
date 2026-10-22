@@ -46,6 +46,7 @@ export async function render(root, ctx) {
       stat(t('ov_success'), rate == null ? '—' : `${rate} %`),
       stat(t('ov_tokens'), `${fmtCompact(total.tokensIn)} / ${fmtCompact(total.tokensOut)}`),
       stat(t('ov_latency'), fmtMs(total.avgMs || null)),
+      stat(t('ov_cost'), `${(total.costUsd ?? 0).toFixed(4)} $`, `${o.spend.day.toFixed(4)} $ ${t('ov_costToday')} · ${o.spend.month.toFixed(4)} $ ${t('ov_costMonth')} · ${o.costMode}`),
       stat(t('ov_cache'), fmtInt(total.cached), `${o.cache.hits} hits / ${o.cache.misses} miss`),
       stat(t('ov_providers'), `${o.counts.providersReady} / ${o.counts.providersTotal}`, `${fmtInt(o.counts.modelsReady)} ${t('ov_modelsReady')}`)),
     h('div', { class: 'grid two' },

@@ -66,7 +66,7 @@ export async function render(root) {
             try { await api(`/api/aliases/${encodeURIComponent(a)}`, { method: 'DELETE' }); load(); } catch (e) { toast(e.message, 'err'); }
           } }, icon('trash')))) : h('p', { class: 'muted' }, '—')),
       h('div', { class: 'card' }, h('h3', null, t('combos_virtual')),
-        h('div', { class: 'grid two' }, ['auto', 'fast', 'smart', 'code', 'vision', 'reasoning', 'embed'].map((v) => h('div', { class: 'conn' },
+        h('div', { class: 'grid two' }, ['auto', 'free', 'best', 'fast', 'smart', 'code', 'vision', 'reasoning', 'embed'].map((v) => h('div', { class: 'conn' },
           h('div', { class: 'grow' }, h('b', { class: 'mono' }, `phenix/${v}`), h('div', { class: 'muted small' }, t(`combos_virtual${v[0].toUpperCase()}${v.slice(1)}`))),
           copyButton(`phenix/${v}`))))));
   };

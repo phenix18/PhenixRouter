@@ -13,9 +13,11 @@ import { ResponseCache } from './core/cache.js';
 import { RateLimiter } from './core/ratelimit.js';
 import { PROVIDERS, getProvider } from './providers/registry.js';
 import { Catalog } from './core/catalog.js';
+import { VIRTUAL } from './core/router.js';
+import { estimateCost } from './providers/pricing.js';
 
 const COMBO_NAME = /^[a-z0-9][a-z0-9._-]{0,47}$/i;
-const RESERVED = new Set(['auto', 'fast', 'smart', 'code', 'vision', 'reasoning', 'embed']);
+const RESERVED = new Set([...VIRTUAL, 'phenixrouter-free']);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 
 const SETTING_TYPES = {
@@ -35,6 +37,20 @@ const SETTING_TYPES = {
   webTools: Boolean,
   searxngUrl: (v) => (typeof v === 'string' && (v === '' || /^https?:\/\//.test(v)) ? v.replace(/\/+$/, '') : ''),
   autoChainSize: (v) => clamp(Math.round(Number(v) || 6), 1, 20),
+  costMode: (v) => (['freeOnly', 'freeFirst', 'any'].includes(v) ? v : 'freeFirst'),
+  dailyBudgetUsd: (v) => clamp(Number(v) || 0, 0, 1e6),
+  monthlyBudgetUsd: (v) => clamp(Number(v) || 0, 0, 1e7),
+  pricing: (v) => {
+    const out = {};
+    if (v && typeof v === 'object') {
+      for (const [k, p] of Object.entries(v).slice(0, 500)) {
+        if (p && Number.isFinite(Number(p.in)) && Number.isFinite(Number(p.out))) out[String(k).slice(0, 200)] = { in: clamp(Number(p.in), 0, 1e4), out: clamp(Number(p.out), 0, 1e4) };
+      }
+    }
+    return out;
+  },
+  tokenSaver: Boolean,
+  tokenSaverMaxChars: (v) => clamp(Math.round(Number(v) || 6000), 500, 200000),
 };
 
 export function hasCredentials(conn) {
@@ -232,7 +248,7 @@ export class Gateway extends EventEmitter {
     };
   }
 
-  addConnection({ provider, name, apiKey, baseUrl, extra, dailyLimit }) {
+  addConnection({ provider, name, apiKey, baseUrl, extra, dailyLimit, priority }) {
     const p = getProvider(provider);
     if (!p) throw httpError(400, 'Fournisseur inconnu');
     if (p.custom && !/^https?:\/\//.test(baseUrl ?? '')) throw httpError(400, 'URL de base (http/https) requise');
@@ -244,6 +260,7 @@ export class Gateway extends EventEmitter {
       baseUrl: baseUrl ? String(baseUrl).replace(/\/+$/, '') : undefined,
       extra: extra?.accountId ? { accountId: String(extra.accountId).trim() } : {},
       dailyLimit: clamp(Math.round(Number(dailyLimit) || 0), 0, 1e7),
+      priority: clamp(Math.round(Number(priority) || 5), 1, 99),
       createdAt: Date.now(),
     };
     this.db.connections.push(conn);
@@ -268,6 +285,7 @@ export class Gateway extends EventEmitter {
     if (patch.baseUrl !== undefined) c.baseUrl = patch.baseUrl ? String(patch.baseUrl).replace(/\/+$/, '') : undefined;
     if (patch.extra?.accountId) c.extra = { ...c.extra, accountId: String(patch.extra.accountId).trim() };
     if (patch.dailyLimit != null) c.dailyLimit = clamp(Math.round(Number(patch.dailyLimit) || 0), 0, 1e7);
+    if (patch.priority != null) c.priority = clamp(Math.round(Number(patch.priority) || 5), 1, 99);
     this.store.save();
     this.health.reset(id);
     return true;
@@ -297,9 +315,41 @@ export class Gateway extends EventEmitter {
       this.health.available(c.id) && (!c.dailyLimit || this.ledger.dailyCount(c.id) < c.dailyLimit)
     ));
     if (list.length <= 1) return list;
-    const start = (this.rr.get(providerId) ?? 0) % list.length;
+    // Priorité (1 = d'abord), puis round-robin au sein d'un même niveau de priorité.
+    const level = (c) => c.priority ?? 5;
+    const best = Math.min(...list.map(level));
+    const sorted = [...list].sort((a, b) => level(a) - level(b));
+    const top = sorted.filter((c) => level(c) === best);
+    const rest = sorted.filter((c) => level(c) !== best);
+    const start = (this.rr.get(providerId) ?? 0) % top.length;
     if (!peek) this.rr.set(providerId, start + 1);
-    return [...list.slice(start), ...list.slice(0, start)];
+    return [...top.slice(start), ...top.slice(0, start), ...rest];
+  }
+
+  /* ───────── Gratuit / payant & budgets ───────── */
+
+  /** Dépense estimée (USD) sur le jour UTC courant et le mois UTC courant. */
+  spend() {
+    const now = new Date();
+    const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const month = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    return { day: this.ledger.spendSince(day), month: this.ledger.spendSince(month) };
+  }
+
+  /** Raison de refus d'un fournisseur selon le mode de coût et les budgets, ou null s'il est autorisé. */
+  costBlock(providerId) {
+    const p = getProvider(providerId);
+    if (!p || p.tier !== 'paid') return null;
+    const s = this.settings();
+    if (s.costMode === 'freeOnly') return 'mode « gratuit seul » actif';
+    const { day, month } = this.spend();
+    if (s.dailyBudgetUsd > 0 && day >= s.dailyBudgetUsd) return `budget quotidien atteint (${day.toFixed(2)} $ / ${s.dailyBudgetUsd} $)`;
+    if (s.monthlyBudgetUsd > 0 && month >= s.monthlyBudgetUsd) return `budget mensuel atteint (${month.toFixed(2)} $ / ${s.monthlyBudgetUsd} $)`;
+    return null;
+  }
+
+  estimateCost(providerId, model, tokensIn, tokensOut) {
+    return estimateCost(providerId, model, tokensIn, tokensOut, this.settings().pricing);
   }
 
   /** Meilleur score de santé parmi les connexions d'un fournisseur (plus bas = meilleur). */
@@ -368,6 +418,10 @@ export class Gateway extends EventEmitter {
   }
 
   recordExchange(x) {
+    if (x.costUsd == null && x.status === 'ok' && !x.cached && x.provider) {
+      const bare = String(x.model ?? '').startsWith(`${x.provider}/`) ? String(x.model).slice(x.provider.length + 1) : x.model;
+      x = { ...x, costUsd: this.estimateCost(x.provider, bare ?? '', x.tokensIn ?? 0, x.tokensOut ?? 0) };
+    }
     const ex = this.ledger.recordExchange(x);
     this.emit('exchange', ex);
     return ex;

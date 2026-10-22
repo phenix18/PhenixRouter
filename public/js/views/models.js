@@ -5,14 +5,14 @@ import { api } from '../api.js';
 
 export async function render(root) {
   let data = await api('/api/models');
-  const f = { q: '', provider: '', tag: '', readyOnly: false };
+  const f = { q: '', provider: '', tag: '', readyOnly: false, tier: '' };
   const body = h('tbody');
   const count = h('span', { class: 'muted' });
 
   const draw = () => {
     const q = f.q.toLowerCase();
     const rows = data.models.filter((m) => (!q || m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q))
-      && (!f.provider || m.provider === f.provider) && (!f.tag || m.tags.includes(f.tag)) && (!f.readyOnly || m.status === 'ready'))
+      && (!f.provider || m.provider === f.provider) && (!f.tier || m.tier === f.tier) && (!f.tag || m.tags.includes(f.tag)) && (!f.readyOnly || m.status === 'ready'))
       .sort((a, b) => (a.status === 'ready' ? 0 : 1) - (b.status === 'ready' ? 0 : 1) || b.quality - a.quality);
     count.textContent = `${rows.length} ${t('models_count')}`;
     body.replaceChildren(...(rows.length ? rows.slice(0, 400).map((m) => {
@@ -20,6 +20,7 @@ export async function render(root) {
       return h('tr', null,
         h('td', { class: 'mono' }, h('div', null, m.id), h('small', { class: 'muted' }, m.source === 'live' ? t('models_live') : t('models_static'))),
         h('td', null, m.providerName), h('td', null, statusBadge(m.status)),
+        h('td', null, m.tier === 'paid' ? h('span', { class: 'tag warn' }, m.price?.known ? `${t('tier_paid')} · ~${m.price.in}/${m.price.out} $` : `${t('tier_paid')} · ${t('models_priceUnknown')}`) : h('span', { class: 'badge ok' }, t('tier_free'))),
         h('td', null, m.ctx ? fmtCompact(m.ctx) : '—'),
         h('td', null, m.tags.map((x) => h('span', { class: 'tag' }, x))),
         h('td', { class: 'nowrap' }, copyButton(m.id),
@@ -32,7 +33,7 @@ export async function render(root) {
               } catch (err) { res.textContent = `✗ ${err.message}`; }
               e.target.blur();
             } }, icon('play')), res));
-    }) : [h('tr', null, h('td', { colspan: 6, class: 'muted' }, t('models_none')))]));
+    }) : [h('tr', null, h('td', { colspan: 7, class: 'muted' }, t('models_none')))]));
   };
 
   const providers = [...new Map(data.models.map((m) => [m.provider, m.providerName])).entries()];
@@ -51,10 +52,12 @@ export async function render(root) {
         h('option', { value: '' }, `${t('models_provider')} : ${t('all')}`), providers.map(([id, n]) => h('option', { value: id }, n))),
       h('select', { 'aria-label': t('models_capabilities'), onchange: (e) => { f.tag = e.target.value; draw(); } },
         h('option', { value: '' }, `${t('models_capabilities')} : ${t('all')}`), tags.map((x) => h('option', { value: x }, x))),
+      h('select', { 'aria-label': t('models_tier'), onchange: (e) => { f.tier = e.target.value; draw(); } },
+        h('option', { value: '' }, `${t('models_tier')} : ${t('tier_all')}`), h('option', { value: 'free' }, t('tier_free')), h('option', { value: 'paid' }, t('tier_paid'))),
       h('label', { class: 'check' }, h('input', { type: 'checkbox', onchange: (e) => { f.readyOnly = e.target.checked; draw(); } }), t('statusReady')),
       refresh, count),
     h('div', { class: 'card flush' }, h('div', { class: 'table-wrap' }, h('table', null,
-      h('thead', null, h('tr', null, ['models_title', 'models_provider', 'models_status', 'models_ctx', 'models_capabilities', ''].map((k) => h('th', null, k && t(k))))),
+      h('thead', null, h('tr', null, ['models_title', 'models_provider', 'models_status', 'models_price', 'models_ctx', 'models_capabilities', ''].map((k) => h('th', null, k && t(k))))),
       body))));
   draw();
 }
