@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS, resolveDataDir, clamp } from './config.js';
 import { Ledger } from './rea/ledger.js';
 import { Health } from './providers/health.js';
 import { Monitor } from './core/probe.js';
+import { ShopService } from './shop/service.js';
 import { AuditLog } from './core/audit.js';
 import { ResponseCache } from './core/cache.js';
 import { RateLimiter } from './core/ratelimit.js';
@@ -93,7 +94,7 @@ export class Gateway extends EventEmitter {
     ensureDir(this.dir);
     this.vault = new Vault(this.dir);
     this.store = new JsonStore(join(this.dir, 'db.json'), {
-      version: 1, connections: [], combos: [], aliases: {}, apiKeys: [], proxies: [], settings: {}, auth: { passwordHash: null },
+      version: 1, connections: [], combos: [], aliases: {}, apiKeys: [], proxies: [], orders: [], shop: {}, settings: {}, auth: { passwordHash: null },
     });
     this.db = this.store.load();
     this.ledger = new Ledger(this.dir);
@@ -106,6 +107,7 @@ export class Gateway extends EventEmitter {
     this.tunnel = new Tunnel();
     this.monitor = new Monitor(this);
     this.audit = new AuditLog(this.dir);
+    this.shop = new ShopService(this);
     this.proxyHealth = new Map();
     this.proxyRr = 0;
     this.catalog = new Catalog(this);
@@ -251,6 +253,7 @@ export class Gateway extends EventEmitter {
     const r = this.clientPolicy(name);
     if (!r) return null;
     name = r.name;
+    if (r.sold && this.shop.balance(r) <= 0) return { status: 402, type: 'insufficient_credits', message: 'Crédit épuisé : rechargez votre licence sur la boutique' };
     const now = new Date();
     const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     const month = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
@@ -328,7 +331,7 @@ export class Gateway extends EventEmitter {
     };
   }
 
-  addConnection({ provider, name, apiKey, baseUrl, extra, dailyLimit, priority, proxyId }) {
+  addConnection({ provider, name, apiKey, baseUrl, extra, dailyLimit, priority, proxyId, resale }) {
     const p = getProvider(provider);
     if (!p) throw httpError(400, 'Fournisseur inconnu');
     if (p.custom && !/^https?:\/\//.test(baseUrl ?? '')) throw httpError(400, 'URL de base (http/https) requise');
@@ -346,6 +349,7 @@ export class Gateway extends EventEmitter {
       dailyLimit: clamp(Math.round(Number(dailyLimit) || 0), 0, 1e7),
       priority: clamp(Math.round(Number(priority) || 5), 1, 99),
       proxyId: this._validProxyRef(proxyId),
+      resale: resale === true,
       createdAt: Date.now(),
     };
     this.db.connections.push(conn);
@@ -372,6 +376,7 @@ export class Gateway extends EventEmitter {
     if (patch.extra?.cx) c.extra = { ...c.extra, cx: String(patch.extra.cx).trim() };
     if (patch.dailyLimit != null) c.dailyLimit = clamp(Math.round(Number(patch.dailyLimit) || 0), 0, 1e7);
     if (patch.priority != null) c.priority = clamp(Math.round(Number(patch.priority) || 5), 1, 99);
+    if (patch.resale != null) c.resale = patch.resale === true;
     if (patch.proxyId !== undefined) c.proxyId = this._validProxyRef(patch.proxyId);
     this.store.save();
     this.health.reset(id);
@@ -498,9 +503,11 @@ export class Gateway extends EventEmitter {
    * Connexions utilisables maintenant (santé + plafond quotidien), ordonnées en round-robin.
    * @param {{peek?:boolean}} [opts] peek = ne pas faire avancer le curseur.
    */
-  usableConnections(providerId, { peek = false } = {}) {
+  usableConnections(providerId, { peek = false, client } = {}) {
+    // Une licence vendue (resaleOnly) n'utilise que les connexions marquées « resale » ; les autres clients n'y touchent pas.
+    const resaleOnly = !!this.clientPolicy(client)?.resaleOnly;
     const list = this.configuredConnections(providerId).filter((c) => (
-      this.health.available(c.id) && (!c.dailyLimit || this.ledger.dailyCount(c.id) < c.dailyLimit)
+      (!resaleOnly || c.resale === true) && this.health.available(c.id) && (!c.dailyLimit || this.ledger.dailyCount(c.id) < c.dailyLimit)
     ));
     if (list.length <= 1) return list;
     // Priorité (1 = d'abord), puis round-robin au sein d'un même niveau de priorité.
@@ -611,6 +618,7 @@ export class Gateway extends EventEmitter {
       x = { ...x, costUsd: this.estimateCost(x.provider, bare ?? '', x.tokensIn ?? 0, x.tokensOut ?? 0) };
     }
     const ex = this.ledger.recordExchange(x);
+    try { this.shop.charge(ex); } catch (e) { this.log({ level: 'error', message: `shop: débit impossible (${e.message})` }); }
     this.emit('exchange', ex);
     if (ex.costUsd > 0) this._budgetAlerts();
     return ex;

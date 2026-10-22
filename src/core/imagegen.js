@@ -214,7 +214,7 @@ export async function runImages(gw, body, ctx) {
   for (const { provider, model } of candidates(gw, requested)) {
     const reason = gw.costBlock(provider.id);
     if (reason) { attempts.push({ provider: provider.id, skipped: 'cost', message: reason }); continue; }
-    const conns = gw.usableConnections(provider.id);
+    const conns = gw.usableConnections(provider.id, { client: ctx.client });
     if (!conns.length) { attempts.push({ provider: provider.id, skipped: 'no_key' }); continue; }
     const adapter = ADAPTERS[provider.image.kind];
     if (!adapter) continue;

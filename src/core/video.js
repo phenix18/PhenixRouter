@@ -87,7 +87,7 @@ export async function createVideo(gw, body, ctx, action = 'generations') {
   for (const { provider, model } of candidates(String(body.model ?? ''), action)) {
     const reason = gw.costBlock(provider.id);
     if (reason) { attempts.push({ provider: provider.id, skipped: 'cost', message: reason }); continue; }
-    const conns = gw.usableConnections(provider.id);
+    const conns = gw.usableConnections(provider.id, { client: ctx.client });
     if (!conns.length) { attempts.push({ provider: provider.id, skipped: 'no_key' }); continue; }
     const kind = KINDS[provider.video.kind];
     for (const conn of conns) {

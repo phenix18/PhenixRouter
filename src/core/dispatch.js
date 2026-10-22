@@ -149,7 +149,7 @@ export async function callUpstream(gw, targets, spec) {
       attempts.push({ provider: provider.id, model: target.model, skipped: 'cost', message: costReason });
       continue;
     }
-    const conns = gw.usableConnections(provider.id);
+    const conns = gw.usableConnections(provider.id, { client: spec.client });
     if (!conns.length) {
       attempts.push({ provider: provider.id, model: target.model, skipped: gw.configuredConnections(provider.id).length ? 'cooldown' : 'no_key' });
       continue;

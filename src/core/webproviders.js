@@ -117,7 +117,7 @@ async function tryProviders(gw, cap, table, input, ctx, name) {
   for (const provider of chain(gw, cap, name)) {
     const reason = gw.costBlock(provider.id);
     if (reason) { attempts.push({ provider: provider.id, skipped: 'cost', message: reason }); continue; }
-    const conns = gw.usableConnections(provider.id);
+    const conns = gw.usableConnections(provider.id, { client: ctx.client });
     if (!conns.length) { attempts.push({ provider: provider.id, skipped: 'no_key' }); continue; }
     for (const conn of conns) {
       const signal = AbortSignal.any([AbortSignal.timeout(20000), ...(ctx.signal ? [ctx.signal] : [])]);

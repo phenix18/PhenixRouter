@@ -12,6 +12,8 @@ import {
   readJson, sendJson, parseCookies, clientIp,
 } from './http.js';
 import { sameOrigin } from './v1.js';
+import { handleShopAdmin } from '../shop/api.js';
+import { viaProxy } from './http.js';
 import { sseHeaders, sseData } from '../core/sse.js';
 
 const PUBLIC = new Set(['POST /api/login', 'GET /api/session', 'POST /api/logout']);
@@ -87,6 +89,10 @@ export async function handleAdmin(gw, req, res, url) {
   try {
     const mutating = req.method !== 'GET' && req.method !== 'HEAD';
     if (mutating && !sameOrigin(req)) throw httpError(403, 'Origine refusée');
+
+    // Boutique active + tunnel : l'administration reste locale, sauf réglage explicite « allowRemoteAdmin ».
+    const sh = gw.shop.settings();
+    if (sh.enabled && !sh.allowRemoteAdmin && viaProxy(req)) throw httpError(403, 'Administration non accessible depuis Internet (boutique active)');
 
     if (!PUBLIC.has(route)) {
       const ok = gw.verifySession(parseCookies(req).phx_session);
@@ -358,6 +364,7 @@ export async function handleAdmin(gw, req, res, url) {
       return;
     }
 
+    if (path.startsWith('/api/shop') && await handleShopAdmin(gw, req, res, route, path)) return;
     throw httpError(404, `Route inconnue : ${route}`);
   } catch (e) {
     const status = Number.isInteger(e?.status) ? e.status : 500;

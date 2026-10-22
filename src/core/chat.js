@@ -73,7 +73,7 @@ export async function runChat(gw, body, ctx) {
   let result;
   try {
     result = await callUpstream(gw, resolved.targets, {
-      path: '/chat/completions', body, stream, signal: ctx.signal,
+      path: '/chat/completions', body, stream, signal: ctx.signal, client: ctx.client,
       validate: (j) => Array.isArray(j.choices) && j.choices.length > 0,
     });
   } catch (e) {

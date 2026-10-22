@@ -1,6 +1,16 @@
 // Copyright (c) 2026 Fido-labs —kcw—
 // Traductions fr / en (le français est la langue par défaut et de repli).
 const fr = {
+  nav_sales: 'Ventes', sales_title: 'Vente de tokens', sales_sub: 'Boutique optionnelle : vendez des tokens prépayés (1 M = 3 $), suivez le solde et la marge. Désactivée par défaut — décochez pour tout couper.',
+  sales_revenue: 'Encaissé', sales_licenses: 'licences', sales_sold: 'Tokens vendus', sales_consumed: 'consommés', sales_outstanding: 'Crédit restant dû', sales_cost: 'Coût fournisseurs', sales_margin: 'Marge estimée', sales_ledger: 'Livre des ventes', sales_ledgerSub: 'chaîne + dualité paiement/crédit',
+  sales_settings: 'Réglages de la boutique', sales_warn: 'Ne revendez que des accès dont vous avez le droit de faire commerce (vos propres clés payantes). Marquez ces connexions « revente » dans Fournisseurs : les licences vendues n’utilisent que celles-ci.',
+  sales_enabled: 'Activé', sales_brand: 'Nom affiché', sales_price: 'Prix pour 1 M de tokens (USD)', sales_currency: 'Devise', sales_packs: 'Packs (1M=3, 5M=15…)', sales_custom: 'Autoriser un montant libre',
+  sales_publicUrl: 'URL publique (tunnel / domaine)', sales_publicUrlHint: 'Utilisée dans les exemples d’intégration et le retour Binance Pay.', sales_contact: 'Contact vendeur', sales_notice: 'Message affiché sur la boutique', sales_ttl: 'Durée de la commande (min)', sales_validity: 'Validité de la licence (jours, 0 = illimitée)',
+  sales_rate: 'Limite par minute des clés vendues', sales_mult: 'Multiplicateurs par modèle', sales_multHint: 'Un modèle coûteux consomme plus de tokens vendus (ex. openai/gpt-4o=5).', sales_remote: 'Autoriser l’administration via Internet (déconseillé)',
+  sales_manual: 'Paiement manuel', sales_label: 'Libellé', sales_instr: 'Instructions de paiement', sales_bpNote: 'Nécessite un compte marchand Binance Pay. L’intégration est écrite d’après la documentation publique ; testez avec une petite commande.',
+  sales_orders: 'Commandes', sales_buyer: 'Acheteur', sales_method: 'Moyen', sales_paid: 'Payée', sales_confirmPay: 'Confirmer le paiement', sales_delivered: 'Crédit remis', sales_noOrders: 'Aucune commande',
+  sales_licenseList: 'Licences vendues', sales_grant: 'Remise manuelle', sales_grantM: 'Millions de tokens', sales_grantUsd: 'Montant encaissé (USD, 0 = cadeau)', sales_target: 'Licence', sales_newLicense: '— nouvelle licence —', sales_licenseCreated: 'Licence créée', sales_keyOnce: 'Transmettez cette clé au client : elle ne sera plus affichée après 24 h.',
+  sales_balance: 'Solde', sales_bought: 'Acheté', sales_noLicenses: 'Aucune licence', prov_resale: 'Revente',
   appName: 'PhenixRouter',
   tagline: 'Des modèles IA gratuits pour tous vos outils',
   copyright: 'Copyright © 2026 Fido-labs —kcw—',
@@ -82,6 +92,16 @@ const fr = {
 };
 
 const en = {
+  nav_sales: 'Sales', sales_title: 'Token sales', sales_sub: 'Optional shop: sell prepaid tokens (1 M = $3), track balance and margin. Disabled by default — untick to switch it all off.',
+  sales_revenue: 'Revenue', sales_licenses: 'licenses', sales_sold: 'Tokens sold', sales_consumed: 'consumed', sales_outstanding: 'Outstanding credit', sales_cost: 'Upstream cost', sales_margin: 'Estimated margin', sales_ledger: 'Sales ledger', sales_ledgerSub: 'chain + payment/credit duality',
+  sales_settings: 'Shop settings', sales_warn: 'Only resell access you are entitled to sell (your own paid keys). Flag those connections “resale” in Providers: sold licenses only use these.',
+  sales_enabled: 'Enabled', sales_brand: 'Display name', sales_price: 'Price per 1 M tokens (USD)', sales_currency: 'Currency', sales_packs: 'Packs (1M=3, 5M=15…)', sales_custom: 'Allow custom amount',
+  sales_publicUrl: 'Public URL (tunnel / domain)', sales_publicUrlHint: 'Used in integration examples and the Binance Pay return link.', sales_contact: 'Seller contact', sales_notice: 'Message shown on the shop', sales_ttl: 'Order lifetime (min)', sales_validity: 'License validity (days, 0 = unlimited)',
+  sales_rate: 'Per-minute limit for sold keys', sales_mult: 'Per-model multipliers', sales_multHint: 'An expensive model burns more sold tokens (e.g. openai/gpt-4o=5).', sales_remote: 'Allow administration over the Internet (not recommended)',
+  sales_manual: 'Manual payment', sales_label: 'Label', sales_instr: 'Payment instructions', sales_bpNote: 'Requires a Binance Pay merchant account. The integration follows the public docs; test with a small order.',
+  sales_orders: 'Orders', sales_buyer: 'Buyer', sales_method: 'Method', sales_paid: 'Paid', sales_confirmPay: 'Confirm payment', sales_delivered: 'Credit delivered', sales_noOrders: 'No orders',
+  sales_licenseList: 'Sold licenses', sales_grant: 'Manual grant', sales_grantM: 'Million tokens', sales_grantUsd: 'Amount received (USD, 0 = gift)', sales_target: 'License', sales_newLicense: '— new license —', sales_licenseCreated: 'License created', sales_keyOnce: 'Give this key to the customer: it will no longer be shown after 24 h.',
+  sales_balance: 'Balance', sales_bought: 'Bought', sales_noLicenses: 'No licenses', prov_resale: 'Resale',
   tagline: 'Free AI models for every tool',
   nav_overview: 'Overview', nav_models: 'Models', nav_providers: 'Providers', nav_combos: 'Combos & aliases', nav_keys: 'Keys & tools',
   nav_playground: 'Playground', nav_logs: 'Log', nav_settings: 'Settings',

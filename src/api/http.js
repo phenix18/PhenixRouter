@@ -63,6 +63,24 @@ export function clientIp(req) {
   return req.socket?.remoteAddress ?? 'unknown';
 }
 
+/**
+ * IP réelle du visiteur. Derrière un tunnel (cloudflared, ngrok…) toutes les requêtes arrivent depuis le
+ * bouclage : on ne fait confiance aux en-têtes de proxy que lorsque la connexion directe est locale.
+ */
+export function realIp(req) {
+  const direct = req.socket?.remoteAddress ?? 'unknown';
+  if (!/^(::1|127\.|::ffff:127\.)/.test(direct)) return direct;
+  const h = req.headers;
+  const fwd = String(h['cf-connecting-ip'] ?? h['x-real-ip'] ?? String(h['x-forwarded-for'] ?? '').split(',')[0] ?? '').trim();
+  return fwd || direct;
+}
+
+/** Vrai si la requête semble arriver via un tunnel/proxy inverse (donc depuis Internet). */
+export function viaProxy(req) {
+  const h = req.headers;
+  return !!(h['cf-connecting-ip'] || h['x-forwarded-for'] || h['x-real-ip'] || h['cf-ray'] || h['forwarded']);
+}
+
 export function bearer(req) {
   const h = String(req.headers.authorization ?? '');
   const m = /^Bearer\s+(.+)$/i.exec(h);

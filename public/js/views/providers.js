@@ -49,6 +49,9 @@ function connRow(c, reload) {
         c.health?.lastOkAt ? ` · OK ${ago(c.health.lastOkAt)}` : '',
         c.probe && c.probe.ok === false ? ` · ✗ ${t('prov_probeFail')} (${c.probe.status ?? c.probe.message ?? ''})` : '',
         c.probe && c.probe.ok === true ? ` · ✓ ${t('prov_probeOk')} ${ago(c.probe.at)}` : '', ' ', res)),
+    c.implicit || c.id.startsWith('env:') ? null : h('label', { class: 'small muted', title: t('prov_resale') }, h('input', { type: 'checkbox', checked: c.resale === true, onchange: async (e) => {
+      try { await api(`/api/connections/${encodeURIComponent(c.id)}`, { method: 'PATCH', body: { resale: e.target.checked } }); } catch (err) { toast(err.message, 'err'); e.target.checked = !e.target.checked; }
+    } }), ' ', t('prov_resale')),
     h('label', { class: 'switch', title: t('statusReady') }, h('input', { type: 'checkbox', checked: c.enabled !== false, onchange: async (e) => {
       try { await api(`/api/connections/${encodeURIComponent(c.id)}`, { method: 'PATCH', body: { enabled: e.target.checked } }); } catch (err) { toast(err.message, 'err'); e.target.checked = !e.target.checked; }
     } }), h('i')),

@@ -2,6 +2,15 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.5.0 — Vente de tokens (module optionnel)
+- **Boutique de tokens prépayés** (désactivée par défaut, supprimable : réglage « Activé » ou suppression de `src/shop` + `public/shop`) : 1 M de tokens = 3 USD, packs et montant libre, multiplicateurs par modèle.
+- **Page web `/shop`** (mobile + PC, FR/EN, installable) : commande, paiement manuel ou **Binance Pay** (API marchande, statut revérifié par appel signé, jamais sur la foi du webhook), remise de la licence `phx-…`, recharge, compte (solde, usage, derniers appels) et exemples d'intégration PC/mobile.
+- **Licences = clés API prépayées** : débit automatique à chaque appel réussi non mis en cache, `402 insufficient_credits` à zéro, routage limité aux connexions marquées « revente ».
+- **Vue admin « Ventes »** : réglages, commandes (confirmation manuelle), licences, remise hors ligne (Mobile Money, cadeau), encaissé / vendu / consommé / coût fournisseurs / marge.
+- **REA** : livre `sales.jsonl` chaîné par hachage ; dualité PAYMENT_RECEIVED ↔ CREDIT_GRANTED vérifiée (voir `docs/VENTE-TOKENS.md`).
+- Garde-fous : limites de débit par IP réelle (tunnel), administration refusée via Internet tant que la boutique est active, secrets Binance scellés (AES‑256‑GCM), clé en clair effacée après 24 h.
+- Nouveau logo (phénix) ; 114 tests (12 nouveaux).
+
 ## 1.4.0 — Équipe et sécurité d'exploitation
 - **Quotas par clé cliente** : requêtes/jour, budget/jour et /mois (USD), modèles autorisés (`groq/*`, `phenix/free`…), date d'expiration ; appliqués sur chat, Anthropic, Responses, Gemini, MCP, embeddings et images ; refus `429 quota_exceeded` / `403 model_not_allowed`. Noms de clés uniques.
 - **Journal d'audit chaîné par hachage** (`audit.jsonl`) : chaque action d'administration (sans valeur sensible) et chaque échec de connexion ; altération ou suppression détectée (`GET /api/audit`, vue « Journal »).

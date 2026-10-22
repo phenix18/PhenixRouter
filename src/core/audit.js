@@ -11,8 +11,8 @@ const GENESIS = '0'.repeat(64);
 const h = (prev, body) => createHash('sha256').update(prev + body).digest('hex');
 
 export class AuditLog {
-  constructor(dir) {
-    this.file = join(dir, 'audit.jsonl');
+  constructor(dir, filename = 'audit.jsonl') {
+    this.file = join(dir, filename);
     this.last = GENESIS;
     this.count = 0;
     if (existsSync(this.file)) {
@@ -26,11 +26,12 @@ export class AuditLog {
     } catch { return []; }
   }
 
-  /** @param {{actor:string, ip?:string, action:string, status?:number, detail?:string}} e */
+  /** @param {{actor:string, ip?:string, action:string, status?:number, detail?:string, data?:object}} e */
   record(e) {
     const entry = {
       ts: Date.now(), actor: String(e.actor ?? '?').slice(0, 60), ip: String(e.ip ?? '').slice(0, 64),
       action: String(e.action).slice(0, 120), status: e.status ?? null, detail: e.detail ? String(e.detail).slice(0, 200) : undefined,
+      data: e.data && typeof e.data === 'object' ? e.data : undefined,
       prev: this.last,
     };
     entry.hash = h(entry.prev, JSON.stringify({ ...entry, hash: undefined }));
@@ -48,6 +49,10 @@ export class AuditLog {
 
   recent(limit = 100) {
     return this._read().filter((e) => !e.corrupt).slice(-limit).reverse();
+  }
+
+  all() {
+    return this._read().filter((e) => !e.corrupt);
   }
 
   /** Vérifie la chaîne du fichier courant. Renvoie { ok, entries, brokenAt? }. */

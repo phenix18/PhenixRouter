@@ -62,6 +62,9 @@ Mise à jour : relancer la commande `npm install -g`. Désinstallation : `npm un
 
 `phenix/free` n'utilise jamais de payant · `phenix/best` classe par qualité seule · un budget quotidien/mensuel bloque les payants une fois atteint (le gratuit continue). Les prix sont **indicatifs** et modifiables ; seule la facture du fournisseur fait foi.
 
+## Vendre des tokens (optionnel)
+Module désactivé par défaut : boutique web `/shop`, licences prépayées (1 M = 3 USD), paiement Binance Pay ou manuel, suivi solde/marge dans la vue « Ventes ». Voir [docs/VENTE-TOKENS.md](docs/VENTE-TOKENS.md) — lisez les réserves légales (ne revendez que des accès dont vous avez le droit de faire commerce).
+
 ## Brancher vos outils
 
 ```bash

@@ -63,7 +63,7 @@ export async function runAudio(gw, kind, { body, contentType, client, signal }) 
   for (const { provider, model, kind: nativeKind } of cands) {
     const reason = gw.costBlock(provider.id);
     if (reason) { attempts.push({ provider: provider.id, skipped: 'cost', message: reason }); continue; }
-    const conns = gw.usableConnections(provider.id);
+    const conns = gw.usableConnections(provider.id, { client });
     if (!conns.length) { attempts.push({ provider: provider.id, skipped: 'no_key' }); continue; }
     for (const conn of conns) {
       if (nativeKind !== 'openai') {

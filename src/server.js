@@ -9,6 +9,7 @@ import { handleV1 } from './api/v1.js';
 import { handleAdmin } from './api/admin.js';
 import { handleGemini } from './api/gemini.js';
 import { handleMcp } from './api/mcp.js';
+import { handleShopPublic } from './shop/api.js';
 import { sendJson, openaiErrorBody } from './api/http.js';
 
 const MIME = {
@@ -84,6 +85,12 @@ export function createApp(gw) {
       if (url.pathname === '/mcp') { await handleMcp(gw, req, res, ctx); return; }
       if (url.pathname.startsWith('/v1beta')) { await handleGemini(gw, req, res, url, ctx); return; }
       if (url.pathname.startsWith('/v1')) { await handleV1(gw, req, res, url, ctx); return; }
+      if (url.pathname.startsWith('/shop-api/') && await handleShopPublic(gw, req, res, url)) return;
+      if (url.pathname === '/shop' || url.pathname.startsWith('/shop/')) {
+        if (!gw.shop.settings().enabled) { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }); res.end('Boutique désactivée'); return; }
+        await serveStatic(req, res, url.pathname === '/shop' || url.pathname === '/shop/' ? '/shop/index.html' : url.pathname);
+        return;
+      }
       if (url.pathname.startsWith('/api/')) { await handleAdmin(gw, req, res, url); return; }
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         sendJson(res, 405, openaiErrorBody(405, 'Méthode non autorisée', 'invalid_request_error'));

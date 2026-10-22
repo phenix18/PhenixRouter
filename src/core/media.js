@@ -21,7 +21,7 @@ export async function runEmbeddings(gw, body, ctx) {
   let result;
   try {
     result = await callUpstream(gw, resolved.targets, {
-      path: '/embeddings', body, stream: false, signal: ctx.signal,
+      path: '/embeddings', body, stream: false, signal: ctx.signal, client: ctx.client,
       validate: (j) => Array.isArray(j.data) && j.data.length > 0,
     });
   } catch (e) {
