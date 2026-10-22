@@ -66,5 +66,7 @@ export function clientIp(req) {
 export function bearer(req) {
   const h = String(req.headers.authorization ?? '');
   const m = /^Bearer\s+(.+)$/i.exec(h);
-  return m ? m[1].trim() : (req.headers['x-api-key'] ? String(req.headers['x-api-key']).trim() : null);
+  if (m) return m[1].trim();
+  const alt = req.headers['x-api-key'] ?? req.headers['x-goog-api-key'];
+  return alt ? String(alt).trim() : null;
 }

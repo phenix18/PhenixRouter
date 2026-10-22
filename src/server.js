@@ -7,6 +7,8 @@ import { readAsset } from './assets.js';
 import { Gateway } from './gateway.js';
 import { handleV1 } from './api/v1.js';
 import { handleAdmin } from './api/admin.js';
+import { handleGemini } from './api/gemini.js';
+import { handleMcp } from './api/mcp.js';
 import { sendJson, openaiErrorBody } from './api/http.js';
 
 const MIME = {
@@ -33,7 +35,7 @@ function applyCors(gw, req, res) {
     res.setHeader('access-control-allow-origin', allowed.includes('*') && !sameHost ? '*' : origin);
     res.setHeader('vary', 'Origin');
     res.setHeader('access-control-allow-methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.setHeader('access-control-allow-headers', 'authorization,content-type,x-api-key,anthropic-version,anthropic-beta');
+    res.setHeader('access-control-allow-headers', 'authorization,content-type,x-api-key,x-goog-api-key,anthropic-version,anthropic-beta');
     res.setHeader('access-control-max-age', '600');
   }
 }
@@ -71,7 +73,7 @@ export function createApp(gw) {
       applyCors(gw, req, res);
       if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-      if (url.pathname === '/healthz' || url.pathname === '/health') {
+      if (url.pathname === '/healthz' || url.pathname === '/health' || url.pathname === '/api/health') {
         const conns = gw.connections().filter((c) => c.enabled);
         sendJson(res, 200, {
           ok: true, status: 'ok', name: BRAND.name, version: VERSION, uptimeSec: Math.round((Date.now() - gw.startedAt) / 1000),
@@ -79,6 +81,8 @@ export function createApp(gw) {
         });
         return;
       }
+      if (url.pathname === '/mcp') { await handleMcp(gw, req, res, ctx); return; }
+      if (url.pathname.startsWith('/v1beta')) { await handleGemini(gw, req, res, url, ctx); return; }
       if (url.pathname.startsWith('/v1')) { await handleV1(gw, req, res, url, ctx); return; }
       if (url.pathname.startsWith('/api/')) { await handleAdmin(gw, req, res, url); return; }
       if (req.method !== 'GET' && req.method !== 'HEAD') {

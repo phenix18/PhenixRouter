@@ -87,7 +87,7 @@ async function send(gw, provider, conn, model, spec) {
 
   const headerTimer = setTimeout(() => ctrl.abort(new Error('délai de première réponse dépassé')), s.firstByteTimeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await gw.fetchFor(conn)(url, {
       method: 'POST', headers, body: JSON.stringify(prepareBody(provider, spec.body, model)), signal: ctrl.signal,
     });
     return { res, ctrl, cleanup, totalMs: s.requestTimeoutMs };

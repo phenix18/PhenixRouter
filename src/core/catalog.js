@@ -68,7 +68,7 @@ export class Catalog {
       let lastErr = null;
       for (const conn of conns) {
         try {
-          const models = await discoverModels(p, conn, this.gw.keyOf(conn));
+          const models = await discoverModels(p, conn, this.gw.keyOf(conn), { fetchFn: this.gw.fetchFor(conn) });
           this.live.set(p.id, { models, at: Date.now(), error: null });
           return;
         } catch (e) {

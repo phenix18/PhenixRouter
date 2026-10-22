@@ -12,8 +12,8 @@ function headersFor(provider, key) {
   return h;
 }
 
-async function getJson(url, headers, timeoutMs) {
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+async function getJson(url, headers, timeoutMs, fetchFn = fetch) {
+  const res = await fetchFn(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -23,11 +23,11 @@ const isZero = (v) => v != null && Number(v) === 0;
 /**
  * @returns {Promise<Array<{model:string, ctx:number|null, tags:string[], name?:string}>>}
  */
-export async function discoverModels(provider, conn, key, { timeoutMs = 8000 } = {}) {
+export async function discoverModels(provider, conn, key, { timeoutMs = 8000, fetchFn = fetch } = {}) {
   const headers = headersFor(provider, key);
   switch (provider.discovery) {
     case 'openai': {
-      const json = await getJson(endpoint(provider, conn, '/models'), headers, timeoutMs);
+      const json = await getJson(endpoint(provider, conn, '/models'), headers, timeoutMs, fetchFn);
       const list = Array.isArray(json) ? json : json.data ?? json.models ?? [];
       return list
         .map((x) => (typeof x === 'string' ? { id: x } : x))
@@ -39,7 +39,7 @@ export async function discoverModels(provider, conn, key, { timeoutMs = 8000 } =
         }));
     }
     case 'openrouter': {
-      const json = await getJson(endpoint(provider, conn, '/models'), headers, timeoutMs);
+      const json = await getJson(endpoint(provider, conn, '/models'), headers, timeoutMs, fetchFn);
       return (json.data ?? [])
         .filter((x) => x?.id && isZero(x.pricing?.prompt) && isZero(x.pricing?.completion))
         .filter((x) => !(x.architecture?.output_modalities ?? ['text']).every((o) => o !== 'text'))
@@ -52,7 +52,7 @@ export async function discoverModels(provider, conn, key, { timeoutMs = 8000 } =
         });
     }
     case 'together': {
-      const json = await getJson(endpoint(provider, conn, '/models'), headers, timeoutMs);
+      const json = await getJson(endpoint(provider, conn, '/models'), headers, timeoutMs, fetchFn);
       const list = Array.isArray(json) ? json : json.data ?? [];
       return list
         .filter((x) => x?.id && isZero(x.pricing?.input) && isZero(x.pricing?.output) && ['chat', 'language', 'embedding', undefined].includes(x.type))
@@ -64,7 +64,7 @@ export async function discoverModels(provider, conn, key, { timeoutMs = 8000 } =
         }));
     }
     case 'github': {
-      const json = await getJson('https://models.github.ai/catalog/models', headersFor(provider, key), timeoutMs);
+      const json = await getJson('https://models.github.ai/catalog/models', headersFor(provider, key), timeoutMs, fetchFn);
       return (Array.isArray(json) ? json : [])
         .filter((x) => x?.id)
         .filter((x) => (x.supported_output_modalities ?? ['text']).includes('text'))
@@ -79,7 +79,7 @@ export async function discoverModels(provider, conn, key, { timeoutMs = 8000 } =
       const base = resolveBaseUrl(provider, conn).replace(/\/ai\/v1$/, '/ai');
       const out = [];
       for (const task of ['Text%20Generation', 'Text%20Embeddings']) {
-        const json = await getJson(`${base}/models/search?task=${task}&per_page=100`, headersFor(provider, key), timeoutMs);
+        const json = await getJson(`${base}/models/search?task=${task}&per_page=100`, headersFor(provider, key), timeoutMs, fetchFn);
         for (const x of json.result ?? []) {
           if (!x?.name) continue;
           out.push({

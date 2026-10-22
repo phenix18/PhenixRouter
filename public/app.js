@@ -6,12 +6,12 @@ import { api, setUnauthorizedHandler } from './js/api.js';
 
 const ROUTES = [
   ['overview', 'dashboard', 'nav_overview'], ['models', 'cpu', 'nav_models'], ['providers', 'plug', 'nav_providers'],
-  ['combos', 'shuffle', 'nav_combos'], ['keys', 'key', 'nav_keys'], ['playground', 'terminal', 'nav_playground'],
+  ['combos', 'shuffle', 'nav_combos'], ['access', 'globe', 'nav_access'], ['keys', 'key', 'nav_keys'], ['playground', 'terminal', 'nav_playground'],
   ['logs', 'list', 'nav_logs'], ['settings', 'gear', 'nav_settings'],
 ];
 const VIEWS = {
   overview: () => import('./js/views/overview.js'), models: () => import('./js/views/models.js'), providers: () => import('./js/views/providers.js'),
-  combos: () => import('./js/views/combos.js'), keys: () => import('./js/views/keys.js'), playground: () => import('./js/views/playground.js'),
+  combos: () => import('./js/views/combos.js'), access: () => import('./js/views/access.js'), keys: () => import('./js/views/keys.js'), playground: () => import('./js/views/playground.js'),
   logs: () => import('./js/views/logs.js'), settings: () => import('./js/views/settings.js'),
 };
 

@@ -6,6 +6,8 @@
 // est configurée, la découverte dynamique (discovery.js) les remplace par la liste réelle.
 // Les offres gratuites évoluent vite : vérifiez toujours les conditions chez le fournisseur.
 
+import { EXTRA_PROVIDERS, IMAGE_CAPS, VIDEO_CAPS, AUDIO_CAPS } from './extra.js';
+
 const m = (id, extra = {}) => ({ id, ...extra });
 
 export const PROVIDERS = [
@@ -346,6 +348,13 @@ export const PROVIDERS = [
   },
 ];
 
+// `custom` reste en dernier dans la liste affichée ; les extras s'insèrent avant lui.
+PROVIDERS.splice(PROVIDERS.findIndex((p) => p.id === 'custom'), 0, ...EXTRA_PROVIDERS);
+for (const p of PROVIDERS) {
+  if (IMAGE_CAPS[p.id]) p.image ??= IMAGE_CAPS[p.id];
+  if (VIDEO_CAPS[p.id]) p.video ??= VIDEO_CAPS[p.id];
+  if (AUDIO_CAPS[p.id]) p.audio = { ...(p.audio ?? {}), ...AUDIO_CAPS[p.id] };
+}
 for (const p of PROVIDERS) p.tier ??= 'free';
 
 const byId = new Map();

@@ -4,6 +4,7 @@
 import { PROVIDERS, getProvider, endpoint } from '../providers/registry.js';
 import { classify, shortError, RouterError, ClientAbort } from './dispatch.js';
 import { VERSION } from '../config.js';
+import { parseMultipart, STT, TTS } from './audioext.js';
 
 const KIND_PATH = { transcriptions: '/audio/transcriptions', translations: '/audio/translations', speech: '/audio/speech' };
 
@@ -32,8 +33,8 @@ function candidates(gw, kind, requested) {
   const list = explicit ? [explicit] : PROVIDERS.filter((p) => p.audio && (p.custom || p.audio[cap]));
   const rank = (p) => (p.tier === 'paid' ? 1 : 0);
   return list
-    .map((p) => ({ provider: p, model: explicit ? requested.slice(idx + 1) : (p.audio[cap] ?? '') }))
-    .filter((c) => c.provider.audio)
+    .map((p) => ({ provider: p, model: explicit ? requested.slice(idx + 1) : (p.audio[cap] ?? ''), kind: p.audio[`${cap}Kind`] ?? 'openai' }))
+    .filter((c) => c.provider.audio && !(kind === 'translations' && c.kind !== 'openai'))
     .sort((a, b) => rank(a.provider) - rank(b.provider) || a.provider.priority - b.provider.priority);
 }
 
@@ -59,12 +60,30 @@ export async function runAudio(gw, kind, { body, contentType, client, signal }) 
   const attempts = [];
   const cands = candidates(gw, kind, requested);
 
-  for (const { provider, model } of cands) {
+  for (const { provider, model, kind: nativeKind } of cands) {
     const reason = gw.costBlock(provider.id);
     if (reason) { attempts.push({ provider: provider.id, skipped: 'cost', message: reason }); continue; }
     const conns = gw.usableConnections(provider.id);
     if (!conns.length) { attempts.push({ provider: provider.id, skipped: 'no_key' }); continue; }
     for (const conn of conns) {
+      if (nativeKind !== 'openai') {
+        try {
+          const signal2 = AbortSignal.any([AbortSignal.timeout(gw.settings().requestTimeoutMs), ...(signal ? [signal] : [])]);
+          const input = { provider, conn, key: gw.keyOf(conn), model, f: gw.fetchFor(conn), signal: signal2 };
+          const out = kind === 'speech' ? await TTS[nativeKind]({ ...input, json }) : await STT[nativeKind]({ ...input, mp: parseMultipart(body, contentType) });
+          const ms = Date.now() - t0;
+          gw.health.success(conn.id, ms);
+          const served = `${provider.id}/${model}`;
+          gw.recordExchange({ ts: t0, client, route: `audio.${kind}`, provider: provider.id, model: served, connection: conn.id, status: 'ok', tokensIn: kind === 'speech' ? Math.ceil(String(json.input).length / 4) : 0, tokensOut: 0, ms });
+          return { status: 200, contentType: out.contentType, body: out.body, served };
+        } catch (e) {
+          if (signal?.aborted) throw new ClientAbort();
+          const c = e.status ? classify(e.status, e.body ?? e.message, e.headers) : { kind: 'network', retryMs: 0 };
+          gw.health.failure(conn.id, c.kind, shortError(e.message), c.retryMs);
+          attempts.push({ provider: provider.id, status: e.status, kind: c.kind, message: shortError(String(e?.cause?.code ?? e.message)) });
+          continue;
+        }
+      }
       const outBody = kind === 'speech'
         ? JSON.stringify({ ...json, model })
         : (model && boundary ? setMultipartModel(body, boundary, model) : body);
@@ -75,7 +94,7 @@ export async function runAudio(gw, kind, { body, contentType, client, signal }) 
       const key = gw.keyOf(conn);
       if (key) headers.authorization = `Bearer ${key}`;
       try {
-        const res = await fetch(endpoint(provider, conn, KIND_PATH[kind]), {
+        const res = await gw.fetchFor(conn)(endpoint(provider, conn, KIND_PATH[kind]), {
           method: 'POST', headers, body: outBody, signal: AbortSignal.any([AbortSignal.timeout(gw.settings().requestTimeoutMs), ...(signal ? [signal] : [])]),
         });
         const buf = Buffer.from(await res.arrayBuffer());

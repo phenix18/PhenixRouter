@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   pricing: {},                // surcharges de prix : { "openai/gpt-4o": { in: 2.5, out: 10 } } (USD / M tokens)
   tokenSaver: false,          // compresse les gros résultats d'outils avant l'envoi
   tokenSaverMaxChars: 6000,
+  proxyTestUrl: 'https://www.cloudflare.com/cdn-cgi/trace',
 });
 
 export const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));

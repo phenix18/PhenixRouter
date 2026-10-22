@@ -247,3 +247,9 @@ pre.code { margin: 6px 0 12px; padding: 12px 14px; background: var(--bg); border
 .badge.err { color: var(--err); }
 @media (max-width: 720px) { .hrow { grid-template-columns: 80px 1fr auto; } .grid.two { grid-template-columns: 1fr; } }
 h2.group { margin: 18px 0 2px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+/* Accès & proxys */
+.codeblock { position: relative; margin: 6px 0 10px; }
+.codeblock pre { margin: 0; padding: 10px 44px 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; font-size: 12px; white-space: pre; }
+.codeblock .btn { position: absolute; top: 6px; right: 6px; }
+details > summary { cursor: pointer; padding: 4px 0; color: var(--muted); }

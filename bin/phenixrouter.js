@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { importLegacyConfig } from '../src/core/legacy.js';
+import { toolPaths, applyTool, removeTool, manualSnippets, TOOLS } from '../src/core/clitools.js';
 import { BRAND, VERSION, resolveDataDir } from '../src/config.js';
 import { start } from '../src/server.js';
 import { Gateway } from '../src/gateway.js';
@@ -34,7 +35,7 @@ ${bold('Utilisation')}
   phenixrouter status                Vérifie si le serveur tourne (/health)
   phenixrouter usage                 Requêtes, tokens et coût estimé (24 h / 7 j)
   phenixrouter import <config.json>  Importe les comptes d'un config.json « phenixRouter v3 » (Python)
-  phenixrouter setup <outil> [--key K] [--write]   Configuration prête à l'emploi : claude | codex | openai
+  phenixrouter setup <outil> [--key K] [--write|--remove]   Configure un outil : claude codex opencode cline droid copilot | openai continue aider gemini | list
   phenixrouter reset-password [mdp]  Définit un nouveau mot de passe du tableau de bord
   phenixrouter --version | --help
 
@@ -45,7 +46,8 @@ ${bold('Options de démarrage')}
       --no-browser      N'ouvre pas le navigateur
       --all             (models) inclut aussi les modèles dont le fournisseur n'est pas connecté
       --key <clé>       (setup) clé API cliente à écrire dans la configuration (sinon PHENIX_API_KEY)
-      --write           (setup claude) fusionne la configuration dans ~/.claude/settings.json (sauvegarde .bak)
+      --write           (setup) écrit la configuration de l'outil (fusion non destructive, sauvegarde .bak)
+      --remove          (setup) retire la configuration PhenixRouter de l'outil
 
 ${bold('Variables d\'environnement utiles')}
   GROQ_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY, MISTRAL_API_KEY,
@@ -208,35 +210,36 @@ function cmdSetup(flags, tool = 'claude') {
   const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
   const base = `http://127.0.0.1:${port}`;
   const key = flags.key || process.env.PHENIX_API_KEY?.split(',')[0] || 'phx-VOTRE_CLE';
-  const pfx = BRAND.modelPrefix;
-  if (tool === 'claude') {
-    const env = { ANTHROPIC_BASE_URL: base, ANTHROPIC_AUTH_TOKEN: key, ANTHROPIC_MODEL: `${pfx}/auto`, ANTHROPIC_SMALL_FAST_MODEL: `${pfx}/fast` };
-    if (!flags.write) {
-      console.log(bold('Claude Code — variables (ou ajoutez --write pour les fusionner dans ~/.claude/settings.json) :\n'));
-      for (const [k, v] of Object.entries(env)) console.log(`export ${k}="${v}"`);
-      console.log('\nclaude');
+  if (tool === 'list') {
+    for (const t of toolPaths()) console.log(`  ${bold(t.id.padEnd(9))} ${t.label.padEnd(44)} ${dim(t.file)}${t.exists ? green(' ✓') : ''}`);
+    console.log(dim('\n  Autres : openai | continue | aider | gemini (instructions à copier)'));
+    return;
+  }
+  if (TOOLS[tool]) {
+    if (flags.remove) {
+      const r = removeTool(tool);
+      console.log(r.removed ? `${green('✓')} Configuration retirée de ${r.file}` : `Rien à retirer dans ${r.file}`);
       return;
     }
-    const file = join(homedir(), '.claude', 'settings.json');
-    mkdirSync(dirname(file), { recursive: true });
-    let cur = {};
-    if (existsSync(file)) {
-      copyFileSync(file, `${file}.bak`);
-      try { cur = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Error(`${file} n'est pas un JSON valide (sauvegarde : ${file}.bak)`); }
+    if (!flags.write) {
+      console.log(`${bold(TOOLS[tool].label)} — fichier visé : ${toolPaths().find((x) => x.id === tool).file}`);
+      console.log(`Relancez avec ${bold('--write')} pour l’écrire (sauvegarde .bak), ${bold('--key <clé>')} pour la clé API cliente, ${bold('--remove')} pour retirer.`);
+      if (TOOLS[tool].note) console.log(dim(TOOLS[tool].note));
+      return;
     }
-    cur.env = { ...(cur.env ?? {}), ...env };
-    writeFileSync(file, `${JSON.stringify(cur, null, 2)}\n`);
-    console.log(`${green('✓')} Configuration écrite dans ${file}${existsSync(`${file}.bak`) ? dim(' (ancienne version : settings.json.bak)') : ''}`);
-  } else if (tool === 'codex') {
-    console.log(bold('Codex CLI — ajoutez à ~/.codex/config.toml :\n'));
-    console.log(`model = "${pfx}/code"\nmodel_provider = "${pfx}"\n\n[model_providers.${pfx}]\nname = "${BRAND.name}"\nbase_url = "${base}/v1"\nenv_key = "PHENIX_API_KEY"\nwire_api = "responses"\n`);
-    console.log(`puis : export PHENIX_API_KEY="${key}"`);
-  } else if (tool === 'openai' || tool === 'generic') {
-    console.log(bold('Tout client compatible OpenAI (Cursor, Cline, Continue, OpenCode…) :\n'));
-    console.log(`Base URL : ${base}/v1\nAPI Key  : ${key}\nModèle   : ${pfx}/auto   (ou ${pfx}/free, ${pfx}/best, ${pfx}/code…)`);
-  } else {
-    throw new Error('Outil inconnu. Choix : claude | codex | openai');
+    if (key === 'phx-VOTRE_CLE') throw new Error('Indiquez la clé API cliente : --key phx-… (créez-la avec « phenixrouter keys create <nom> »)');
+    const r = applyTool(tool, { base, key });
+    console.log(`${green('✓')} Configuration écrite dans ${r.file}${r.backup ? dim(` (ancienne version : ${r.backup})`) : ''}`);
+    if (r.note) console.log(dim(r.note));
+    return;
   }
+  const snippets = manualSnippets({ base, key });
+  if (snippets[tool] || tool === 'generic') {
+    console.log(bold(`${tool} — à copier :\n`));
+    console.log(snippets[tool === 'generic' ? 'openai' : tool]);
+    return;
+  }
+  throw new Error(`Outil inconnu. Choix : ${[...Object.keys(TOOLS), 'openai', 'continue', 'aider', 'gemini'].join(' | ')} (ou « setup list »)`);
 }
 
 async function main() {

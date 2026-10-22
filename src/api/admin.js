@@ -7,6 +7,7 @@ import { discoverModels, staticModels } from '../providers/discovery.js';
 import { probeConnection } from '../core/dispatch.js';
 import { runChat } from '../core/chat.js';
 import { importLegacyConfig } from '../core/legacy.js';
+import { toolPaths, applyTool, removeTool, manualSnippets, TOOLS } from '../core/clitools.js';
 import {
   readJson, sendJson, parseCookies, clientIp,
 } from './http.js';
@@ -27,7 +28,7 @@ async function testConnection(gw, conn) {
   let discovered = null;
   if (p.discovery && p.discovery !== 'static') {
     try {
-      discovered = await discoverModels(p, conn, gw.keyOf(conn));
+      discovered = await discoverModels(p, conn, gw.keyOf(conn), { fetchFn: gw.fetchFor(conn) });
     } catch (e) {
       error = e?.cause?.code ?? e?.message ?? String(e);
     }
@@ -50,7 +51,8 @@ function providerRows(gw) {
   const errors = gw.catalog.providerErrors();
   return PROVIDERS.map((p) => ({
     id: p.id, alias: p.alias, name: p.name, note: p.note, signup: p.signup, keyless: !!p.keyless, local: !!p.local,
-    custom: !!p.custom, experimental: !!p.experimental, tier: p.tier, needs: p.needs ?? [], keyEnv: p.keyEnv ?? null, speed: p.speed,
+    custom: !!p.custom, experimental: !!p.experimental, tier: p.tier, needs: p.needs ?? [], mediaOnly: !!p.mediaOnly,
+    caps: [...(p.mediaOnly ? [] : ['chat']), ...(p.image ? ['image'] : []), ...(p.video ? ['video'] : []), ...(p.audio?.tts ? ['tts'] : []), ...(p.audio?.stt ? ['stt'] : []), ...(p.search ? ['search'] : []), ...(p.fetch ? ['fetch'] : [])], keyEnv: p.keyEnv ?? null, speed: p.speed,
     status: gw.catalog.providerStatus(p.id),
     modelCount: catalog.filter((m) => m.provider === p.id).length,
     discoveryError: errors[p.id] ?? null,
@@ -248,6 +250,62 @@ export async function handleAdmin(gw, req, res, url) {
       sendJson(res, 200, { ok: true });
       return;
     }
+
+    /* ── Proxys sortants (pools) ── */
+    if (route === 'GET /api/proxies') { sendJson(res, 200, { proxies: gw.listProxies() }); return; }
+    if (route === 'POST /api/proxies') {
+      const { name, url: purl } = await readJson(req, 4096);
+      try { sendJson(res, 201, { proxy: gw.addProxy({ name, url: purl }) }); } catch (e) { throw httpError(400, e.message); }
+      return;
+    }
+    m = /^\/api\/proxies\/([^/]+)(?:\/(test))?$/.exec(path);
+    if (m) {
+      const id = decodeURIComponent(m[1]);
+      if (m[2] === 'test' && req.method === 'POST') {
+        const r = await gw.testProxy(id);
+        if (!r) throw httpError(404, 'Proxy introuvable');
+        sendJson(res, 200, r); return;
+      }
+      if (req.method === 'PATCH') {
+        let rec;
+        try { rec = gw.updateProxy(id, await readJson(req, 4096)); } catch (e) { throw httpError(400, e.message); }
+        if (!rec) throw httpError(404, 'Proxy introuvable');
+        sendJson(res, 200, { proxy: rec }); return;
+      }
+      if (req.method === 'DELETE') {
+        if (!gw.deleteProxy(id)) throw httpError(404, 'Proxy introuvable');
+        sendJson(res, 200, { ok: true }); return;
+      }
+    }
+
+    /* ── Outils clients (écriture de configuration) ── */
+    const baseUrl = `http://127.0.0.1:${req.socket.localPort}`;
+    if (route === 'GET /api/clitools') {
+      const sample = manualSnippets({ base: baseUrl, key: 'phx-VOTRE_CLE' });
+      sendJson(res, 200, { baseUrl, tools: toolPaths(), manual: sample }); return;
+    }
+    m = /^\/api\/clitools\/([a-z]+)\/(apply|remove)$/.exec(path);
+    if (m && req.method === 'POST') {
+      if (!TOOLS[m[1]]) throw httpError(404, 'Outil inconnu');
+      try {
+        if (m[2] === 'remove') { sendJson(res, 200, removeTool(m[1])); return; }
+        // Une clé dédiée par outil : révocable séparément dans l'onglet Clés.
+        const { key } = gw.createApiKey(`outil-${m[1]}`);
+        sendJson(res, 200, applyTool(m[1], { base: baseUrl, key }));
+      } catch (e) { throw httpError(400, e.message); }
+      return;
+    }
+
+    /* ── Tunnel d'accès distant ── */
+    if (route === 'GET /api/tunnel') { sendJson(res, 200, gw.tunnel.status()); return; }
+    if (route === 'POST /api/tunnel/start') {
+      const { provider } = await readJson(req, 1024);
+      if (!gw.db.apiKeys.some((k) => k.enabled) && !process.env.PHENIX_API_KEY) throw httpError(400, 'Créez d’abord une clé API : exposer le routeur sans clé serait dangereux');
+      gw.updateSettings({ requireApiKey: true });
+      try { sendJson(res, 200, await gw.tunnel.start(provider, req.socket.localPort)); } catch (e) { throw httpError(502, e.message); }
+      return;
+    }
+    if (route === 'POST /api/tunnel/stop') { gw.tunnel.stop(); sendJson(res, 200, gw.tunnel.status()); return; }
 
     /* ── Réglages, journal, usage ── */
     if (route === 'GET /api/settings') { sendJson(res, 200, { settings: gw.settings() }); return; }

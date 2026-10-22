@@ -11,7 +11,8 @@ Tout-en-un, zéro dépendance, tableau de bord intégré, exécutable autonome.
 - **Payant en option** : OpenAI, Anthropic, DeepSeek, xAI, Perplexity, Fireworks, DeepInfra, Hyperbolic, Novita, Moonshot, Qwen. **Mode de coût** *gratuit seul / gratuit d'abord / tout*, **budgets** quotidien et mensuel, coût estimé par requête.
 - **Dynamique** : catalogue de modèles découvert **en direct**, modèles virtuels `phenix/auto|free|best|fast|smart|code|vision|reasoning|embed`, combos (repli, rotation, plus rapide, aléatoire), alias, priorité par clé.
 - **Robuste** : rotation de clés, coupe-circuit (`Retry-After`), erreurs cachées dans un 200, flux vides, outils non supportés, cache de réponses, limites de débit.
-- **Compatible** : `/v1/chat/completions`, `/v1/messages` (Claude Code), `/v1/responses` (Codex), `/v1/models`, `/v1/embeddings`, `/v1/images/generations`, `/v1/audio/transcriptions|translations|speech`, `/v1/search`, `/v1/web/fetch`, `/health`.
+- **Compatible** : `/v1/chat/completions`, `/v1/messages` (Claude Code), `/v1/responses` (Codex), `/v1/models`, `/v1/embeddings`, `/v1/images/generations`, `/v1/audio/transcriptions|translations|speech`, `/v1/videos/generations`, `/v1/search`, `/v1/web/fetch`, `/v1/models/<type>`, `/v1beta` (Gemini natif), `/mcp` (MCP), `/health`.
+- **Réseau** : proxys sortants par connexion ou en pool (échec fermé), tunnel cloudflared/tailscale, config automatique des outils clients (`phenixrouter setup`).
 - **Économe** : *Token Saver* (compresse les gros résultats d'outils), cache, budgets.
 - **Traçable (REA)** : chaque échange = paire *REQUEST/COMPLETION* (+ `cost_usd` si payant) dans un grand livre append-only ([docs/REA.md](docs/REA.md)).
 - **Sûr** : clés chiffrées (AES‑256‑GCM), mot de passe aléatoire, écoute locale par défaut, CSP stricte, garde SSRF.
@@ -81,7 +82,7 @@ Les exécutables ne sont pas signés : Windows SmartScreen / macOS Gatekeeper de
 ## Développement
 
 ```bash
-npm test      # 60 tests, node:test, aucun réseau requis (faux fournisseur)
+npm test      # 76 tests, node:test, aucun réseau requis (faux fournisseur)
 ```
 
 Documentation : [Architecture](docs/ARCHITECTURE.md) · [Modèle REA](docs/REA.md) · [Fournisseurs](docs/PROVIDERS.md) · [Comparaison](docs/COMPARAISON.md) · [Changelog](CHANGELOG.md).

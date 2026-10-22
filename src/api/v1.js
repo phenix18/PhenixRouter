@@ -8,10 +8,15 @@ import {
   readJson, readRaw, sendJson, openaiErrorBody, parseCookies, bearer,
 } from './http.js';
 import { runChat, estimateTokens, RouterError, ClientAbort } from '../core/chat.js';
-import { runEmbeddings, runImages } from '../core/media.js';
+import { runEmbeddings } from '../core/media.js';
+import { runImages } from '../core/imagegen.js';
+import { createVideo, getVideo } from '../core/video.js';
+import { runSearch, runFetch } from '../core/webproviders.js';
 import { runAudio } from '../core/audio.js';
-import { webSearch, webFetch } from '../core/webtools.js';
 import { VIRTUAL } from '../core/router.js';
+import { listByType, modelInfo } from '../core/modeltypes.js';
+import { listVoices } from '../core/audioext.js';
+import { PROVIDERS } from '../providers/registry.js';
 import {
   sseHeaders, sseData, sseEvent,
 } from '../core/sse.js';
@@ -67,7 +72,7 @@ function sendError(res, e, anthropic) {
   }
 }
 
-function servedHeaders(meta) {
+export function servedHeaders(meta) {
   const h = {
     'x-phenix-provider': meta.provider,
     'x-phenix-model': meta.model,
@@ -85,7 +90,7 @@ async function writeSafe(res, data) {
   return !res.destroyed;
 }
 
-async function pipeStream(res, out, { start = () => [], map, end = () => [], onError, headers = {} }) {
+export async function pipeStream(res, out, { start = () => [], map, end = () => [], onError, headers = {} }) {
   res.writeHead(200, sseHeaders(headers));
   const hb = setInterval(() => { if (!res.destroyed) res.write(': ping\n\n'); }, 15000);
   hb.unref?.();
@@ -163,7 +168,7 @@ async function responsesApi(gw, req, res, client, ctx) {
   });
 }
 
-function listModels(gw, all) {
+export function listModels(gw, all) {
   const created = Math.floor(gw.startedAt / 1000);
   const data = [];
   const prefix = BRAND.modelPrefix;
@@ -207,8 +212,29 @@ export async function handleV1(gw, req, res, url, ctx) {
         sendJson(res, 200, countTokens(await readJson(req))); return;
       case 'POST /v1/responses':
         await responsesApi(gw, req, res, client, ctx); return;
+      case 'GET /v1/models/image': case 'GET /v1/models/video': case 'GET /v1/models/tts': case 'GET /v1/models/stt':
+      case 'GET /v1/models/embedding': case 'GET /v1/models/web': case 'GET /v1/models/image-to-text': case 'GET /v1/models/vision':
+        sendJson(res, 200, listByType(gw, path.split('/').pop(), url.searchParams.get('all') === '1')); return;
+      case 'GET /v1/models/chat': case 'GET /v1/models/llm':
+        sendJson(res, 200, listModels(gw, url.searchParams.get('all') === '1')); return;
       case 'GET /v1/models':
         sendJson(res, 200, listModels(gw, url.searchParams.get('all') === '1')); return;
+      case 'GET /v1/models/info': {
+        const id = url.searchParams.get('id') ?? '';
+        const info = modelInfo(gw, id) ?? listModels(gw, true).data.find((m) => m.id === id);
+        if (!info) throw httpError(404, `Modèle « ${id} » introuvable`, { type: 'model_not_found' });
+        sendJson(res, 200, info); return;
+      }
+      case 'GET /v1/audio/voices': {
+        const pid = url.searchParams.get('provider') ?? 'elevenlabs';
+        const p = PROVIDERS.find((x) => x.id === pid || x.alias === pid);
+        const kind = p?.audio?.ttsKind;
+        if (!kind) throw httpError(400, `« ${pid} » ne propose pas de liste de voix`, { type: 'invalid_request_error' });
+        const conn = gw.usableConnections(p.id, { peek: true })[0];
+        if (!conn) throw httpError(503, `Aucune clé active pour « ${p.id} »`, { type: 'no_provider' });
+        const voices = await listVoices(kind, { conn, key: gw.keyOf(conn), f: gw.fetchFor(conn), signal: AbortSignal.timeout(15000) }).catch((e) => { throw httpError(502, `Voix indisponibles : ${e.message}`); });
+        sendJson(res, 200, { object: 'list', data: voices }); return;
+      }
       case 'POST /v1/embeddings': {
         const body = await readJson(req);
         const { json, served } = await runEmbeddings(gw, body, { client: client.name, signal: ctx.signal });
@@ -220,37 +246,52 @@ export async function handleV1(gw, req, res, url, ctx) {
         const kind = path.split('/').pop();
         const raw = await readRaw(req);
         const out = await runAudio(gw, kind, { body: raw, contentType: String(req.headers['content-type'] ?? ''), client: client.name, signal: ctx.signal });
+        if (kind === 'speech' && url.searchParams.get('response_format') === 'json') {
+          const format = /mpeg|mp3/.test(out.contentType) ? 'mp3' : /wav/.test(out.contentType) ? 'wav' : /ogg|opus/.test(out.contentType) ? 'ogg' : 'mp3';
+          sendJson(res, 200, { audio: out.body.toString('base64'), format }, { 'x-phenix-model': out.served }); return;
+        }
         res.writeHead(out.status, { 'content-type': out.contentType, 'content-length': out.body.length, 'x-phenix-model': out.served, 'cache-control': 'no-store' });
         res.end(out.body); return;
       }
       case 'POST /v1/images/generations': {
         const body = await readJson(req);
-        sendJson(res, 200, await runImages(gw, body, { client: client.name, signal: ctx.signal })); return;
+        const binary = url.searchParams.get('response_format') === 'binary';
+        const out = await runImages(gw, binary ? { ...body, response_format: 'b64_json' } : body, { client: client.name, signal: ctx.signal });
+        if (binary) {
+          let first = out.data[0];
+          let buf = first?.b64_json ? Buffer.from(first.b64_json, 'base64') : null;
+          if (!buf && first?.url) {
+            const r = await fetch(first.url, { signal: AbortSignal.timeout(60000) });
+            if (!r.ok) throw httpError(502, `Téléchargement de l'image impossible (HTTP ${r.status})`);
+            buf = Buffer.from(await r.arrayBuffer());
+          }
+          if (!buf) throw httpError(502, 'Aucune image reçue');
+          const mime = buf.subarray(0, 3).toString('hex') === 'ffd8ff' ? 'image/jpeg' : buf.subarray(0, 4).toString('latin1') === 'RIFF' ? 'image/webp' : 'image/png';
+          res.writeHead(200, { 'content-type': mime, 'content-length': buf.length, 'x-phenix-model': out.model ?? '', 'cache-control': 'no-store' });
+          res.end(buf); return;
+        }
+        sendJson(res, 200, out); return;
+      }
+      case 'POST /v1/videos/generations':
+      case 'POST /v1/videos/edits':
+      case 'POST /v1/videos/extensions': {
+        const body = await readJson(req);
+        sendJson(res, 202, await createVideo(gw, body, { client: client.name, signal: ctx.signal }, path.split('/').pop())); return;
       }
       case 'GET /v1/search':
       case 'POST /v1/search': {
         if (!gw.settings().webTools) throw httpError(403, 'Outils web désactivés dans les réglages');
-        const body = req.method === 'POST' ? await readJson(req) : {};
-        const q = body.query ?? body.q ?? url.searchParams.get('q');
-        try {
-          sendJson(res, 200, await webSearch(gw.settings(), q, { limit: body.limit ?? url.searchParams.get('limit') }));
-        } catch (e) {
-          throw httpError(502, `Recherche impossible : ${e.message}`);
-        }
-        return;
+        const body = req.method === 'POST' ? await readJson(req) : Object.fromEntries(url.searchParams);
+        sendJson(res, 200, await runSearch(gw, body, { client: client.name, signal: ctx.signal })); return;
       }
       case 'POST /v1/web/fetch': {
         if (!gw.settings().webTools) throw httpError(403, 'Outils web désactivés dans les réglages');
-        const body = await readJson(req);
-        if (!body.url) throw httpError(400, '« url » est requis', { type: 'invalid_request_error' });
-        try {
-          sendJson(res, 200, await webFetch(String(body.url), { maxChars: body.max_chars }));
-        } catch (e) {
-          throw httpError(502, `Lecture impossible : ${e.message}`);
-        }
-        return;
+        sendJson(res, 200, await runFetch(gw, await readJson(req), { client: client.name, signal: ctx.signal })); return;
       }
       default:
+        if (req.method === 'GET' && path.startsWith('/v1/videos/')) {
+          sendJson(res, 200, await getVideo(gw, decodeURIComponent(path.slice('/v1/videos/'.length)), { signal: ctx.signal })); return;
+        }
         if (req.method === 'GET' && path.startsWith('/v1/models/')) {
           const id = decodeURIComponent(path.slice('/v1/models/'.length));
           const found = listModels(gw, true).data.find((m) => m.id === id);

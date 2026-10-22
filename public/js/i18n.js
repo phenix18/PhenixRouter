@@ -67,6 +67,13 @@ const fr = {
   set_dailyBudget: 'Budget quotidien en $ (0 = illimité)', set_monthlyBudget: 'Budget mensuel en $ (0 = illimité)', set_costNote: 'Les coûts sont des estimations (prix indicatifs, modifiables) : seule la facture du fournisseur fait foi.',
   set_tokenSaver: 'Token Saver : compresser les gros résultats d’outils et vieux messages', set_tokenSaverMax: 'Taille max. d’un résultat d’outil (caractères)',
   set_import: 'Importer un config.json « phenixRouter v3 »', set_importDone: 'comptes importés', set_importSkipped: 'ignorés',
+  nav_access: 'Accès & proxys', prov_groupMedia: 'Images, voix, vidéo, recherche web', prov_proxy: 'Sortie réseau', prov_proxyNone: 'Directe (sans proxy)', prov_proxyPool: 'Pool de proxys (rotation)', prov_cx: 'Identifiant du moteur (cx)', prov_via: 'via proxy',
+  cap_chat: 'chat', cap_image: 'image', cap_video: 'vidéo', cap_tts: 'voix', cap_stt: 'transcription', cap_search: 'recherche', cap_fetch: 'lecture web',
+  acc_title: 'Accès & proxys', acc_sub: 'Brancher vos outils, ouvrir un accès distant, sortir par des proxys',
+  acc_tools: 'Outils clients', acc_toolsNote: 'Écrit la configuration de l’outil (sauvegarde .bak) avec une clé API dédiée, révocable dans « Clés & outils ».', acc_apply: 'Appliquer', acc_remove: 'Retirer', acc_applied: 'Configuration écrite', acc_removed: 'Configuration retirée', acc_nothing: 'Rien à retirer', acc_file: 'Fichier',
+  acc_manual: 'Autres outils (à copier)', acc_mcp: 'Serveur MCP', acc_mcpNote: 'Ajoutez PhenixRouter comme serveur MCP (chat, recherche, lecture web, images) :',
+  acc_tunnel: 'Accès distant (tunnel HTTPS)', acc_tunnelNote: 'Utilise cloudflared (sans compte) ou Tailscale Funnel, déjà installés sur cette machine. Une clé API est exigée.', acc_start: 'Démarrer', acc_stop: 'Arrêter', acc_missing: 'non installé', acc_running: 'actif', acc_stopped: 'arrêté', acc_starting: 'démarrage…',
+  acc_proxies: 'Proxys sortants', acc_proxiesNote: 'Faites sortir certaines connexions par un proxy HTTP/HTTPS (http://utilisateur:motdepasse@hôte:port). SOCKS non géré. Si un proxy choisi est indisponible, la requête échoue (jamais de sortie directe).', acc_addProxy: 'Ajouter un proxy', acc_proxyUrl: 'URL du proxy', acc_noProxy: 'Aucun proxy', acc_usedBy: 'connexions', acc_proxyOk: 'Proxy OK',
 };
 
 const en = {
@@ -122,6 +129,13 @@ const en = {
   set_dailyBudget: 'Daily budget in $ (0 = unlimited)', set_monthlyBudget: 'Monthly budget in $ (0 = unlimited)', set_costNote: 'Costs are estimates (indicative, editable prices): only the provider’s invoice is authoritative.',
   set_tokenSaver: 'Token Saver: compress large tool results and old messages', set_tokenSaverMax: 'Max size of a tool result (characters)',
   set_import: 'Import a “phenixRouter v3” config.json', set_importDone: 'accounts imported', set_importSkipped: 'skipped',
+  nav_access: 'Access & proxies', prov_groupMedia: 'Images, voice, video, web search', prov_proxy: 'Network egress', prov_proxyNone: 'Direct (no proxy)', prov_proxyPool: 'Proxy pool (rotation)', prov_cx: 'Search engine ID (cx)', prov_via: 'via proxy',
+  cap_chat: 'chat', cap_image: 'image', cap_video: 'video', cap_tts: 'voice', cap_stt: 'transcription', cap_search: 'search', cap_fetch: 'web fetch',
+  acc_title: 'Access & proxies', acc_sub: 'Connect your tools, open remote access, route through proxies',
+  acc_tools: 'Client tools', acc_toolsNote: 'Writes the tool configuration (.bak backup) with a dedicated API key, revocable under “Keys & tools”.', acc_apply: 'Apply', acc_remove: 'Remove', acc_applied: 'Configuration written', acc_removed: 'Configuration removed', acc_nothing: 'Nothing to remove', acc_file: 'File',
+  acc_manual: 'Other tools (copy)', acc_mcp: 'MCP server', acc_mcpNote: 'Add PhenixRouter as an MCP server (chat, search, web fetch, images):',
+  acc_tunnel: 'Remote access (HTTPS tunnel)', acc_tunnelNote: 'Uses cloudflared (no account) or Tailscale Funnel, already installed on this machine. An API key is required.', acc_start: 'Start', acc_stop: 'Stop', acc_missing: 'not installed', acc_running: 'running', acc_stopped: 'stopped', acc_starting: 'starting…',
+  acc_proxies: 'Outbound proxies', acc_proxiesNote: 'Route some connections through an HTTP/HTTPS proxy (http://user:pass@host:port). SOCKS not supported. If a chosen proxy is unavailable the request fails (never a direct exit).', acc_addProxy: 'Add a proxy', acc_proxyUrl: 'Proxy URL', acc_noProxy: 'No proxy', acc_usedBy: 'connections', acc_proxyOk: 'Proxy OK',
 };
 
 const dicts = { fr, en };
