@@ -8,7 +8,7 @@ import { EventEmitter } from 'node:events';
 const URL_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i;
 const TS_RE = /https:\/\/[a-z0-9.-]+\.ts\.net[^\s]*/i;
 
-export function binaryAvailable(cmd) {
+function binaryAvailable(cmd) {
   try {
     const r = spawnSync(cmd, ['--version'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
     return r.status === 0 || (r.stdout || r.stderr || '').length > 0 ? !r.error : false;

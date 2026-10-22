@@ -18,13 +18,13 @@ const sleep = (ms, signal) => new Promise((resolve, reject) => {
   signal?.addEventListener('abort', () => { clearTimeout(t); reject(new ClientAbort()); }, { once: true });
 });
 
-export function parseSize(size, fallback = '1024x1024') {
+function parseSize(size, fallback = '1024x1024') {
   const m = /^(\d{2,4})x(\d{2,4})$/.exec(String(size ?? fallback)) ?? /^(\d{2,4})x(\d{2,4})$/.exec(fallback);
   const clampDim = (v) => Math.min(Math.max(Number(v), 256), 2048);
   return { width: clampDim(m[1]), height: clampDim(m[2]) };
 }
 
-export function aspectRatio({ width, height }) {
+function aspectRatio({ width, height }) {
   const r = width / height;
   const options = [['1:1', 1], ['16:9', 16 / 9], ['9:16', 9 / 16], ['4:3', 4 / 3], ['3:4', 3 / 4], ['3:2', 3 / 2], ['2:3', 2 / 3], ['21:9', 21 / 9]];
   return options.sort((a, b) => Math.abs(a[1] - r) - Math.abs(b[1] - r))[0][0];
@@ -55,7 +55,7 @@ const bearer = (key, extra = {}) => ({ 'content-type': 'application/json', 'user
 
 /* ───────── Adaptateurs : (ctx) → { data:[{b64_json|url}] } ───────── */
 
-export const ADAPTERS = {
+const ADAPTERS = {
   async pollinations({ prompt, model, width, height, n, wantUrl, f, signal }) {
     const data = [];
     for (let i = 0; i < n; i += 1) {

@@ -56,7 +56,7 @@ function dedupe(targets) {
 }
 
 /** Chaîne dynamique : filtre par capacité, classe par qualité/latence, diversifie les fournisseurs. */
-export function autoChain(gw, mode, { needTools = false, needVision = false } = {}) {
+function autoChain(gw, mode, { needTools = false, needVision = false } = {}) {
   const embedding = mode === 'embed';
   const costMode = gw.settings().costMode;
   // `free` force le gratuit ; sinon on exclut les fournisseurs payants bloqués (mode gratuit seul, budget épuisé).

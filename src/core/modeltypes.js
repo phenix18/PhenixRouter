@@ -4,7 +4,7 @@
 import { PROVIDERS } from '../providers/registry.js';
 import { BRAND } from '../config.js';
 
-export const MODEL_TYPES = ['chat', 'llm', 'image', 'tts', 'stt', 'embedding', 'web', 'video', 'image-to-text', 'vision'];
+const MODEL_TYPES = ['chat', 'llm', 'image', 'tts', 'stt', 'embedding', 'web', 'video', 'image-to-text', 'vision'];
 
 const ready = (gw, p) => gw.configuredConnections(p.id).length > 0;
 

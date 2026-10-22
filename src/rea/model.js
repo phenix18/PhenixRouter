@@ -13,7 +13,7 @@
 // dualité reste vérifiable : il n'existe jamais de REQUEST orpheline.
 import { randomUUID } from 'node:crypto';
 
-export const AgentKind = Object.freeze({ CLIENT: 'client', PROVIDER: 'provider', SYSTEM: 'system' });
+const AgentKind = Object.freeze({ CLIENT: 'client', PROVIDER: 'provider', SYSTEM: 'system' });
 export const ResourceType = Object.freeze({
   REQUEST_QUOTA: 'request_quota',
   PROMPT_TOKENS: 'prompt_tokens',
@@ -21,9 +21,9 @@ export const ResourceType = Object.freeze({
   COST_USD: 'cost_usd', // paiement estimé (fournisseurs payants) : contrepartie monétaire de la dualité
 });
 export const EventType = Object.freeze({ REQUEST: 'REQUEST', COMPLETION: 'COMPLETION' });
-export const Direction = Object.freeze({ OUTFLOW: 'outflow', INFLOW: 'inflow' });
+const Direction = Object.freeze({ OUTFLOW: 'outflow', INFLOW: 'inflow' });
 
-export const agentId = (kind, name) => `${kind}:${name}`;
+const agentId = (kind, name) => `${kind}:${name}`;
 
 /**
  * Construit la paire d'événements d'un échange.

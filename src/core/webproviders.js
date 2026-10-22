@@ -213,4 +213,4 @@ export async function runFetch(gw, body, ctx) {
   };
 }
 
-export const hasProvider = (id) => !!getProvider(id);
+const hasProvider = (id) => !!getProvider(id);

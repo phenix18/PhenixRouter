@@ -113,7 +113,7 @@ export function anthropicToOpenAI(body) {
 }
 
 const FINISH = { stop: 'end_turn', length: 'max_tokens', tool_calls: 'tool_use', function_call: 'tool_use', content_filter: 'end_turn' };
-export const mapFinish = (r) => FINISH[r] ?? 'end_turn';
+const mapFinish = (r) => FINISH[r] ?? 'end_turn';
 
 export function safeJson(text) {
   if (text && typeof text === 'object') return text;

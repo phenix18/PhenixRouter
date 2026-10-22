@@ -48,7 +48,7 @@ function openProxySocket(proxy, timeoutMs) {
 }
 
 /** Établit un tunnel CONNECT vers host:port et renvoie le socket brut. */
-export async function connectTunnel(proxy, host, port, timeoutMs = 15000) {
+async function connectTunnel(proxy, host, port, timeoutMs = 15000) {
   const sock = await openProxySocket(proxy, timeoutMs);
   const auth = authHeader(proxy);
   sock.write(`CONNECT ${host}:${port} HTTP/1.1\r\nHost: ${host}:${port}\r\n${auth ? `Proxy-Authorization: ${auth}\r\n` : ''}Proxy-Connection: keep-alive\r\n\r\n`);

@@ -6,7 +6,7 @@ import { getProvider } from '../providers/registry.js';
 const PROVIDER_MAP = { google: 'gemini' };
 const PLACEHOLDER = /A_REMPACER|A_REMPLACER|YOUR_|CHANGE_?ME|XXXX/i;
 
-export const isRealKey = (k) => typeof k === 'string' && k.trim().length >= 10 && !PLACEHOLDER.test(k);
+const isRealKey = (k) => typeof k === 'string' && k.trim().length >= 10 && !PLACEHOLDER.test(k);
 
 /** @returns {{imported:number, skipped:Array<{id:string, reason:string}>}} */
 export function importLegacyConfig(gw, cfg) {
