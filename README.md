@@ -35,6 +35,17 @@ node bin/phenixrouter.js start        # ou : npm start · start.sh · start.bat
 Au premier lancement, le terminal affiche **une seule fois** le mot de passe du tableau de bord et une clé API `phx-…`.
 Ouvrez <http://127.0.0.1:20128>, ajoutez vos clés dans **Fournisseurs** (ou via variables d'environnement, voir `.env.example`).
 
+**Option 2 bis — installation en terminal (Node.js 20.9+)** :
+
+```bash
+npm install -g github:phenix18/PhenixRouter     # installe la commande « phenixrouter »
+phenixrouter start                              # ou : npx github:phenix18/PhenixRouter start
+phenixrouter setup claude --write               # configure Claude Code automatiquement
+phenixrouter setup codex                        # bloc config.toml pour Codex
+```
+
+Mise à jour : relancer la commande `npm install -g`. Désinstallation : `npm uninstall -g phenixrouter` (vos données restent dans `~/.phenixrouter`).
+
 **Option 3 — Docker** : `cp .env.example .env && docker compose up -d`
 
 > Vous venez du paquet Python « phenixRouter v3 » ? `phenixrouter import config.json` (ou *Réglages → Importer*) reprend vos comptes (les clés « A_REMPLACER » sont ignorées, la clé admin par défaut n'est pas reprise).
