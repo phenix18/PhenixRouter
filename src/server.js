@@ -3,6 +3,7 @@
 import http from 'node:http';
 import { writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { posix } from 'node:path';
 import { BRAND, VERSION } from './config.js';
 import { readAsset } from './assets.js';
@@ -137,6 +138,9 @@ export async function start({ port, host = '127.0.0.1', dataDir, portFallback = 
   }
   const actualPort = server.address().port;
   try { writeFileSync(join(gw.dir, 'port'), String(actualPort)); } catch { /* ignore */ }
+  // Jeton d'administration local (fichier 0600) : permet à la CLI de gérer les clés pendant que le serveur tourne.
+  gw.localToken = randomBytes(24).toString('base64url');
+  try { writeFileSync(join(gw.dir, 'admin.token'), gw.localToken, { mode: 0o600 }); } catch { /* ignore */ }
   const shown = host === '0.0.0.0' || host === '::' ? 'localhost' : host;
 
   // Rafraîchit le catalogue en arrière-plan, puis périodiquement.
@@ -150,7 +154,7 @@ export async function start({ port, host = '127.0.0.1', dataDir, portFallback = 
     server, gw, creds, port: actualPort, url: `http://${shown}:${actualPort}`,
     close: () => new Promise((resolve) => {
       clearInterval(timer);
-      try { rmSync(join(gw.dir, 'port'), { force: true }); } catch { /* ignore */ }
+      try { rmSync(join(gw.dir, 'port'), { force: true }); rmSync(join(gw.dir, 'admin.token'), { force: true }); } catch { /* ignore */ }
       gw.close();
       server.closeAllConnections?.();
       server.close(() => resolve());

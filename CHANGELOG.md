@@ -2,6 +2,12 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.5.3 — Compatibilité Claude Code / OpenCode
+- Les noms de modèles propres aux outils (`claude-*`, `gpt-*`, `codex`…) sans clé du fournisseur d'origine sont redirigés vers l'alias équivalent (`phenix/fast|auto|smart|code`) au lieu d'une erreur 503.
+- `setup <outil> --write` sans `--key` crée une clé dédiée automatiquement ; `keys create` fonctionne serveur en marche (jeton local `admin.token`, loopback uniquement, refusé via tunnel).
+- Claude Code : variables `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` écrites.
+- 122 tests.
+
 ## 1.5.2 — Port automatique et modèles de codage gratuits
 - **Bascule de port** : 20128 occupé → 20129… (jusqu'à +9) ; port réel mémorisé (`info`, `status`, `setup` le retrouvent) ; `--strict-port` pour l'interdire.
 - **Détection des modèles gratuits pour le codage** : famille (claude, gpt, glm, qwen, deepseek, kimi, gemini, llama, mistral…) et score d'aptitude (appel d'outils, code, raisonnement, contexte) ; `phenixrouter coding`, `models --free --code`, filtre « Codage » dans le tableau de bord.

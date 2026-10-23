@@ -42,13 +42,13 @@ export const TOOLS = {
     label: 'Claude Code', file: (h) => join(h, '.claude', 'settings.json'),
     apply(file, { base, key }) {
       const cur = readJsonLoose(file, {});
-      cur.env = { ...(cur.env ?? {}), ANTHROPIC_BASE_URL: root(base), ANTHROPIC_AUTH_TOKEN: key, ANTHROPIC_MODEL: `${PFX}/auto`, ANTHROPIC_SMALL_FAST_MODEL: `${PFX}/fast` };
+      cur.env = { ...(cur.env ?? {}), ANTHROPIC_BASE_URL: root(base), ANTHROPIC_AUTH_TOKEN: key, ANTHROPIC_MODEL: `${PFX}/auto`, ANTHROPIC_SMALL_FAST_MODEL: `${PFX}/fast`, ANTHROPIC_DEFAULT_OPUS_MODEL: `${PFX}/smart`, ANTHROPIC_DEFAULT_SONNET_MODEL: `${PFX}/code`, ANTHROPIC_DEFAULT_HAIKU_MODEL: `${PFX}/fast` };
       writeJson(file, cur);
     },
     remove(file) {
       const cur = readJsonLoose(file, null);
       if (!cur?.env) return false;
-      for (const k of ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL', 'ANTHROPIC_SMALL_FAST_MODEL']) delete cur.env[k];
+      for (const k of ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL', 'ANTHROPIC_SMALL_FAST_MODEL', 'ANTHROPIC_DEFAULT_OPUS_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL', 'ANTHROPIC_DEFAULT_HAIKU_MODEL']) delete cur.env[k];
       writeJson(file, cur); return true;
     },
   },

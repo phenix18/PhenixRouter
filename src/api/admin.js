@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Fido-labs —kcw—
 // API d'administration du tableau de bord (/api/*) — protégée par session.
+import { timingSafeEqual } from 'node:crypto';
 import { VERSION, BRAND } from '../config.js';
 import { httpError } from '../gateway.js';
 import { PROVIDERS, getProvider } from '../providers/registry.js';
@@ -83,6 +84,15 @@ function overview(gw) {
   };
 }
 
+/** Appel de la CLI locale : jeton du fichier admin.token, connexion directe depuis le bouclage, jamais via un tunnel. */
+function localAdmin(gw, req) {
+  const tok = req.headers['x-phenix-local-admin'];
+  if (!gw.localToken || typeof tok !== 'string' || viaProxy(req)) return false;
+  if (!/^(::1|127\.|::ffff:127\.)/.test(req.socket?.remoteAddress ?? '')) return false;
+  const a = Buffer.from(tok); const b = Buffer.from(gw.localToken);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function handleAdmin(gw, req, res, url) {
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const route = `${req.method} ${path}`;
@@ -95,7 +105,7 @@ export async function handleAdmin(gw, req, res, url) {
     if (sh.enabled && !sh.allowRemoteAdmin && viaProxy(req)) throw httpError(403, 'Administration non accessible depuis Internet (boutique active)');
 
     if (!PUBLIC.has(route)) {
-      const ok = gw.verifySession(parseCookies(req).phx_session);
+      const ok = gw.verifySession(parseCookies(req).phx_session) || localAdmin(gw, req);
       if (!ok) throw httpError(401, 'Session requise');
     }
     // Journal d'audit : toute écriture d'administration (sans corps de requête) + échecs de connexion.

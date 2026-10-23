@@ -107,6 +107,20 @@ function autoChain(gw, mode, { needTools = false, needVision = false } = {}) {
 /**
  * @returns {{targets: Array<{provider:string, model:string}>, kind:'explicit'|'combo'|'virtual'|'bare', label:string, strategy:string}}
  */
+/**
+ * Les outils (Claude Code, Codex, OpenCode…) envoient parfois leurs propres noms de modèle (« claude-3-5-haiku »,
+ * « gpt-5-codex »…), y compris pour leurs tâches internes. Sans clé du fournisseur d'origine, on les redirige vers
+ * l'alias PhenixRouter équivalent au lieu de répondre « aucun modèle ».
+ */
+export function foreignAlias(name) {
+  const s = String(name).toLowerCase().replace(/^[\w-]+\//, '');
+  if (!/^(claude|gpt|o[134]\b|chatgpt|codex|sonnet|opus|haiku)/.test(s)) return null;
+  if (/haiku|mini|nano|flash|lite|instant/.test(s)) return 'fast';
+  if (/codex|code/.test(s)) return 'code';
+  if (/opus|\bo[134]\b|gpt-5(?!.*(mini|nano))|pro\b|reason|think/.test(s)) return 'smart';
+  return 'auto';
+}
+
 export function resolveTargets(gw, requested, opts = {}) {
   let name = String(requested ?? 'auto').trim() || 'auto';
   const prefix = `${BRAND.modelPrefix}/`.toLowerCase();
@@ -142,10 +156,18 @@ export function resolveTargets(gw, requested, opts = {}) {
   }
 
   const explicit = parseModel(name);
-  if (explicit) return { targets: [explicit], kind: 'explicit', label: name, strategy: 'single' };
+  if (explicit) {
+    const fa = foreignAlias(name);
+    if (fa && ['anthropic', 'openai'].includes(explicit.provider) && gw.catalog.providerStatus(explicit.provider) === 'connect') return { targets: autoChain(gw, fa, opts), kind: 'virtual', label: fa, strategy: 'auto' };
+    return { targets: [explicit], kind: 'explicit', label: name, strategy: 'single' };
+  }
 
   const bare = gw.catalog.findBare(name)
     .sort((a, b) => (a.status === 'ready' ? 0 : 1) - (b.status === 'ready' ? 0 : 1) || (a.latencyMs ?? 9e9) - (b.latencyMs ?? 9e9));
+  if (!bare.some((e) => e.status === 'ready')) {
+    const fa = foreignAlias(name);
+    if (fa) return { targets: autoChain(gw, fa, opts), kind: 'virtual', label: fa, strategy: 'auto' };
+  }
   return {
     targets: dedupe(bare.map((e) => ({ provider: e.provider, model: e.model }))),
     kind: 'bare', label: name, strategy: 'fallback',

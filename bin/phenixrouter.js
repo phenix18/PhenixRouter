@@ -172,6 +172,27 @@ async function cmdStart(flags) {
   process.on('SIGTERM', stop);
 }
 
+/** Appel à l'API d'administration du serveur local (jeton admin.token) ; null si le serveur ne tourne pas. */
+async function viaServer(flags, method, path, body) {
+  const port = portOf(flags);
+  if (!(await serverRunning(port))) return null;
+  let token;
+  try { token = readFileSync(join(resolveDataDir(flags.dataDir), 'admin.token'), 'utf8').trim(); } catch { return null; }
+  const res = await fetch(`http://127.0.0.1:${port}${path}`, { method, headers: { 'content-type': 'application/json', 'x-phenix-local-admin': token }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(8000) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j?.error?.message ?? j?.error ?? `HTTP ${res.status}`);
+  return j;
+}
+
+/** Crée une clé API cliente : via le serveur en marche, sinon directement dans la base. */
+async function createClientKey(flags, name) {
+  const live = await viaServer(flags, 'POST', '/api/keys', { name }).catch(() => null);
+  if (live?.key) return live.key;
+  let key;
+  await mutating(flags, (gw) => { ({ key } = gw.createApiKey(name)); gw.store.flush(); });
+  return key;
+}
+
 async function mutating(flags, fn) {
   const port = portOf(flags);
   if (await serverRunning(port)) {
@@ -325,7 +346,7 @@ async function cmdImport(flags, file) {
   });
 }
 
-function cmdSetup(flags, tool = 'claude') {
+async function cmdSetup(flags, tool = 'claude') {
   const port = portOf(flags);
   const base = `http://127.0.0.1:${port}`;
   const key = flags.key || process.env.PHENIX_API_KEY?.split(',')[0] || 'phx-VOTRE_CLE';
@@ -346,8 +367,13 @@ function cmdSetup(flags, tool = 'claude') {
       if (TOOLS[tool].note) console.log(dim(TOOLS[tool].note));
       return;
     }
-    if (key === 'phx-VOTRE_CLE') throw new Error('Indiquez la clé API cliente : --key phx-… (créez-la avec « phenixrouter keys create <nom> »)');
-    const r = applyTool(tool, { base, key });
+    let useKey = key;
+    if (key === 'phx-VOTRE_CLE') {
+      // Pas de clé fournie : on en crée une dédiée à cet outil (le serveur peut tourner), plus rien à copier à la main.
+      useKey = await createClientKey(flags, tool);
+      console.log(`${green('✓')} Clé API « ${tool} » créée et écrite dans la configuration de l'outil.`);
+    }
+    const r = applyTool(tool, { base, key: useKey });
     console.log(`${green('✓')} Configuration écrite dans ${r.file}${r.backup ? dim(` (ancienne version : ${r.backup})`) : ''}`);
     if (r.note) console.log(dim(r.note));
     return;
@@ -407,7 +433,7 @@ async function main() {
     case 'test': await cmdTest(flags, sub); break;
     case 'usage': await cmdUsage(flags); break;
     case 'import': await cmdImport(flags, sub); break;
-    case 'setup': cmdSetup(flags, sub); break;
+    case 'setup': await cmdSetup(flags, sub); break;
     case 'service': await cmdService(flags, sub); break;
     case 'doctor': await cmdDoctor(flags); break;
     case 'backup':
@@ -433,11 +459,8 @@ async function main() {
           for (const k of keys) console.log(`  ${k.id}  ${k.prefix}…  ${k.enabled ? green('actif') : red('désactivé')}  ${k.name}`);
         });
       } else if (sub === 'create') {
-        await mutating(flags, (gw) => {
-          const { key, record } = gw.createApiKey(arg || 'cli');
-          gw.store.flush();
-          console.log(`Clé « ${record.name} » créée (affichée une seule fois) :\n  ${orange(key)}`);
-        });
+        const key = await createClientKey(flags, arg || 'cli');
+        console.log(`Clé « ${arg || 'cli'} » créée (affichée une seule fois) :\n  ${orange(key)}`);
       } else if (sub === 'revoke' && arg) {
         await mutating(flags, (gw) => {
           const ok = gw.deleteApiKey(arg);
