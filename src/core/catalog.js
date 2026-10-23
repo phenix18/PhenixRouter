@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROVIDERS, getProvider } from '../providers/registry.js';
 import { discoverModels, staticModels } from '../providers/discovery.js';
-import { quality } from '../providers/tags.js';
+import { quality, family, codingScore } from '../providers/tags.js';
 import { priceOf } from '../providers/pricing.js';
 
 export class Catalog {
@@ -117,6 +117,8 @@ export class Catalog {
           status,
           source: useLive ? 'live' : 'static',
           quality: quality(m.model),
+          family: family(m.model),
+          codingScore: codingScore(m.model, m.tags, m.ctx),
           latencyMs: Number.isFinite(score) ? score : null,
           speed: p.speed,
           tier: p.tier,

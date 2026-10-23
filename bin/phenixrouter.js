@@ -37,7 +37,8 @@ ${bold('Utilisation')}
   phenixrouter connect <fournisseur> <clé>   Ajoute une clé fournisseur sans le tableau de bord (ex. groq gsk_…)
   phenixrouter test [modèle]         Envoie une vraie requête de test et explique l'échec éventuel
   phenixrouter list                  Liste vos connexions (clés) et leur état
-  phenixrouter models [--all]        Liste les modèles détectés (gratuit / payant, prix indicatif)
+  phenixrouter models [--all] [--free] [--code]   Liste les modèles détectés (gratuit / payant, prix indicatif)
+  phenixrouter coding [--all]        Meilleurs modèles GRATUITS pour coder (Claude, GPT, GLM, Qwen, DeepSeek, Kimi…) par famille
   phenixrouter status                Vérifie si le serveur tourne (/health)
   phenixrouter usage                 Requêtes, tokens et coût estimé (24 h / 7 j)
   phenixrouter import <config.json>  Importe les comptes d'un config.json « phenixRouter v3 » (Python)
@@ -50,7 +51,8 @@ ${bold('Utilisation')}
   phenixrouter --version | --help
 
 ${bold('Options de démarrage')}
-  -p, --port <n>        Port (défaut ${BRAND.defaultPort}, env PORT)
+  -p, --port <n>        Port (défaut ${BRAND.defaultPort}, env PORT) ; s'il est occupé, les 9 suivants sont essayés
+      --strict-port     Échoue si le port demandé est occupé (pas de bascule)
       --host <addr>     Adresse d'écoute (défaut 127.0.0.1 ; 0.0.0.0 pour exposer)
       --data-dir <dir>  Dossier de données (défaut ~/.${BRAND.slug}, env PHENIX_DATA_DIR)
       --no-browser      N'ouvre pas le navigateur
@@ -81,6 +83,9 @@ function parseArgs(argv) {
     else if (a === '--data-dir') out.flags.dataDir = argv[++i];
     else if (a.startsWith('--data-dir=')) out.flags.dataDir = a.slice(11);
     else if (a === '--no-browser') out.flags.noBrowser = true;
+    else if (a === '--strict-port') out.flags.strictPort = true;
+    else if (a === '--free') out.flags.free = true;
+    else if (a === '--code') out.flags.code = true;
     else if (a === '--all') out.flags.all = true;
     else if (a === '--write') out.flags.write = true;
     else if (a === '--password') out.flags.password = argv[++i];
@@ -105,6 +110,13 @@ function openBrowser(url) {
   } catch { /* pas de navigateur disponible */ }
 }
 
+/** Port à contacter : --port, sinon PORT, sinon le port réellement pris par le serveur (fichier « port »), sinon le défaut. */
+function portOf(flags) {
+  if (flags.port ?? process.env.PORT) return Number(flags.port ?? process.env.PORT);
+  try { const n = Number(readFileSync(join(resolveDataDir(flags.dataDir), 'port'), 'utf8')); if (Number.isInteger(n) && n > 0) return n; } catch { /* ignore */ }
+  return BRAND.defaultPort;
+}
+
 async function serverRunning(port) {
   try {
     const r = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: AbortSignal.timeout(600) });
@@ -118,7 +130,8 @@ async function cmdStart(flags) {
   const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
   const host = flags.host ?? process.env.HOST ?? '127.0.0.1';
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Port invalide');
-  const app = await start({ port, host, dataDir: flags.dataDir });
+  const app = await start({ port, host, dataDir: flags.dataDir, portFallback: flags.strictPort || port === 0 ? 0 : 9 });
+  if (app.port !== port && port !== 0) console.log(`\n  ${orange('ℹ')} Le port ${port} est occupé : ${BRAND.name} utilise le port ${bold(String(app.port))}.`);
 
   console.log(`\n${orange(bold(`  🔥 ${BRAND.name}`))} ${dim(`v${VERSION}`)}  ${dim('—')}  ${BRAND.tagline}`);
   console.log(dim(`  ${BRAND.copyright}\n`));
@@ -160,7 +173,7 @@ async function cmdStart(flags) {
 }
 
 async function mutating(flags, fn) {
-  const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
+  const port = portOf(flags);
   if (await serverRunning(port)) {
     console.error(red('Le serveur tourne : utilisez le tableau de bord (ou arrêtez-le) pour modifier la configuration.'));
     process.exit(1);
@@ -189,10 +202,33 @@ async function cmdModels(flags) {
   const gw = new Gateway({ dataDir: flags.dataDir });
   try {
     await gw.catalog.refresh({ force: true });
-    const list = gw.catalog.list().filter((m) => flags.all || m.status === 'ready');
+    const list = gw.catalog.list().filter((m) => (flags.all || m.status === 'ready') && (!flags.free || m.tier !== 'paid') && (!flags.code || m.codingScore != null));
     console.log(`${list.length} modèle(s)${flags.all ? '' : ' prêt(s)'} :`);
     for (const m of list) console.log(`  ${m.id.padEnd(60)} ${fmtPrice(m).padEnd(24)} ${dim(m.tags.join(','))}`);
     if (!list.length) console.log(dim('  Aucun modèle prêt : ajoutez une clé, ou utilisez --all pour tout voir.'));
+  } finally { gw.close(); }
+}
+
+async function cmdCoding(flags) {
+  const gw = new Gateway({ dataDir: flags.dataDir });
+  try {
+    await gw.catalog.refresh({ force: true }).catch(() => {});
+    const rows = gw.catalog.list().filter((m) => m.codingScore != null && (flags.paid || m.tier !== 'paid') && (flags.all || m.status === 'ready'))
+      .sort((a, b) => b.codingScore - a.codingScore);
+    console.log(`\n${bold('Modèles gratuits adaptés au codage')} ${dim('(appel d’outils requis ; classés par aptitude)')}\n`);
+    if (!rows.length) {
+      console.log(dim('  Aucun modèle prêt. Ajoutez une clé gratuite : phenixrouter connect groq <clé> (ou openrouter, gemini, cerebras, mistral…)'));
+      console.log(dim('  Voir tout, même sans clé : phenixrouter coding --all\n'));
+      return;
+    }
+    const byFamily = new Map();
+    for (const m of rows) byFamily.set(m.family, [...(byFamily.get(m.family) ?? []), m]);
+    for (const [fam, list] of byFamily) {
+      console.log(`  ${orange(fam.toUpperCase())}`);
+      for (const m of list.slice(0, 6)) console.log(`    ${m.id.padEnd(58)} ${String(m.codingScore).padStart(3)}  ${m.status === 'ready' ? green('prêt') : dim('à connecter')}  ${dim(m.tags.filter((x) => x !== 'chat').join(','))}`);
+    }
+    const best = rows.find((m) => m.status === 'ready' && !PROVIDERS.find((p) => p.id === m.provider)?.experimental) ?? rows.find((m) => m.status === 'ready');
+    console.log(`\n  ${bold('Recommandé')} : ${best ? green(best.id) : dim('—')}   ${dim('· alias dynamique : phenix/code (meilleur modèle gratuit de codage prêt)')}\n`);
   } finally { gw.close(); }
 }
 
@@ -201,7 +237,7 @@ function lanAddresses() {
 }
 
 async function cmdInfo(flags) {
-  const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
+  const port = portOf(flags);
   const gw = new Gateway({ dataDir: flags.dataDir });
   try {
     const base = `http://127.0.0.1:${port}`;
@@ -254,7 +290,7 @@ async function cmdTest(flags, model) {
 }
 
 async function cmdStatus(flags) {
-  const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
+  const port = portOf(flags);
   try {
     const r = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(2500) });
     const j = await r.json();
@@ -290,7 +326,7 @@ async function cmdImport(flags, file) {
 }
 
 function cmdSetup(flags, tool = 'claude') {
-  const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
+  const port = portOf(flags);
   const base = `http://127.0.0.1:${port}`;
   const key = flags.key || process.env.PHENIX_API_KEY?.split(',')[0] || 'phx-VOTRE_CLE';
   if (tool === 'list') {
@@ -340,7 +376,7 @@ function backupPassword(flags) {
 }
 
 async function cmdDoctor(flags) {
-  const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
+  const port = portOf(flags);
   const rows = await runDoctor({ dataDir: resolveDataDir(flags.dataDir), port, host: flags.host ?? '127.0.0.1' });
   const mark = { ok: green('✓'), warn: orange('!'), fail: red('✗') };
   for (const r of rows) console.log(`  ${mark[r.status]} ${bold(r.name.padEnd(22))} ${r.detail}`);
@@ -366,6 +402,7 @@ async function main() {
     case 'models': await cmdModels(flags); break;
     case 'status': await cmdStatus(flags); break;
     case 'info': await cmdInfo(flags); break;
+    case 'coding': await cmdCoding(flags); break;
     case 'connect': await cmdConnect(flags, sub, arg); break;
     case 'test': await cmdTest(flags, sub); break;
     case 'usage': await cmdUsage(flags); break;

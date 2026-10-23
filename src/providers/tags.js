@@ -55,3 +55,32 @@ export function quality(id) {
   if (/distill|tiny|mini|nano|lite|small|instant|\b[1-9]b\b/.test(s)) score -= 12;
   return score;
 }
+
+const FAMILIES = [
+  ['claude', /claude|anthropic/i], ['gpt', /gpt|\bo[134](-|$)|openai/i], ['glm', /glm|zhipu|thudm|z-ai|zai/i], ['qwen', /qwen|qwq/i],
+  ['deepseek', /deepseek/i], ['kimi', /kimi|moonshot/i], ['gemini', /gemini|gemma/i], ['llama', /llama/i], ['mistral', /mistral|mixtral|codestral|devstral|magistral/i],
+  ['grok', /grok/i], ['minimax', /minimax/i], ['nemotron', /nemotron/i],
+];
+
+/** Famille du modèle (claude, gpt, glm, qwen…) déduite de son identifiant. */
+export function family(id) {
+  const s = String(id);
+  for (const [name, re] of FAMILIES) if (re.test(s)) return name;
+  return 'other';
+}
+
+/**
+ * Aptitude au codage agentique (outils + code + raisonnement + grand contexte). null = ne convient pas
+ * (embedding, image, ou sans appel d'outils : Claude Code, Codex, Cursor… en ont besoin).
+ */
+export function codingScore(id, tags, ctx) {
+  if (!tags.includes('chat') || !tags.includes('tools')) return null;
+  let score = quality(id);
+  if (tags.includes('code')) score += 25;
+  if (tags.includes('reasoning')) score += 8;
+  if (tags.includes('large')) score += 10;
+  if (tags.includes('small')) score -= 10;
+  if ((ctx ?? 0) >= 128000) score += 5;
+  if (/coder|devstral|codestral|qwen3-coder|glm-4\.[5-9]|kimi-k2|gpt-oss|deepseek-(v3|r1|chat)/i.test(id)) score += 12;
+  return Math.round(score);
+}

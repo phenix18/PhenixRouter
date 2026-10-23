@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Fido-labs —kcw—
 // Serveur HTTP : /v1/* (passerelle), /api/* (administration), fichiers statiques du tableau de bord.
 import http from 'node:http';
+import { writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { posix } from 'node:path';
 import { BRAND, VERSION } from './config.js';
 import { readAsset } from './assets.js';
@@ -109,7 +111,7 @@ export function createApp(gw) {
  * Démarre le serveur. Renvoie { server, gw, port, url, close }.
  * @param {{port?:number, host?:string, dataDir?:string}} opts
  */
-export async function start({ port, host = '127.0.0.1', dataDir } = {}) {
+export async function start({ port, host = '127.0.0.1', dataDir, portFallback = 0 } = {}) {
   const gw = new Gateway({ dataDir });
   const creds = gw.ensureCredentials();
   const server = createApp(gw);
@@ -117,11 +119,24 @@ export async function start({ port, host = '127.0.0.1', dataDir } = {}) {
   server.headersTimeout = 30_000;
   server.keepAliveTimeout = 65_000;
 
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port ?? BRAND.defaultPort, host, resolve);
+  // Port occupé : on essaie les `portFallback` ports suivants (20128 → 20129 → 20130…) au lieu d'échouer.
+  const firstPort = port ?? BRAND.defaultPort;
+  const tryListen = (p) => new Promise((resolve, reject) => {
+    const onError = (e) => { server.off('listening', onOk); reject(e); };
+    const onOk = () => { server.off('error', onError); resolve(); };
+    server.once('error', onError);
+    server.once('listening', onOk);
+    server.listen(p, host);
   });
+  let attempt = 0;
+  for (;;) {
+    try { await tryListen(firstPort === 0 ? 0 : firstPort + attempt); break; } catch (e) {
+      if (e?.code === 'EADDRINUSE' && attempt < portFallback) { attempt += 1; continue; }
+      throw e;
+    }
+  }
   const actualPort = server.address().port;
+  try { writeFileSync(join(gw.dir, 'port'), String(actualPort)); } catch { /* ignore */ }
   const shown = host === '0.0.0.0' || host === '::' ? 'localhost' : host;
 
   // Rafraîchit le catalogue en arrière-plan, puis périodiquement.
@@ -135,6 +150,7 @@ export async function start({ port, host = '127.0.0.1', dataDir } = {}) {
     server, gw, creds, port: actualPort, url: `http://${shown}:${actualPort}`,
     close: () => new Promise((resolve) => {
       clearInterval(timer);
+      try { rmSync(join(gw.dir, 'port'), { force: true }); } catch { /* ignore */ }
       gw.close();
       server.closeAllConnections?.();
       server.close(() => resolve());

@@ -50,6 +50,10 @@ phenixrouter setup claude --write               # configure Claude Code automati
 phenixrouter setup codex                        # bloc config.toml pour Codex
 ```
 
+**Port** : l'URL de base par défaut est `http://localhost:20128` ; si le port est occupé, PhenixRouter prend automatiquement le suivant (20129, 20130…) et l'indique (`--strict-port` pour refuser, `--port N` pour choisir). `phenixrouter info` affiche toujours l'adresse réelle.
+
+**Meilleurs modèles gratuits pour coder** : `phenixrouter coding` classe par famille (GPT‑OSS, Qwen‑Coder, DeepSeek, GLM, Kimi, Gemini, Llama…) les modèles gratuits avec appel d'outils ; `phenix/code` choisit automatiquement le meilleur prêt. Claude (Anthropic) n'a pas d'offre gratuite d'API : il n'apparaît qu'avec une clé payante.
+
 Mise à jour : relancer la commande `npm install -g`. Désinstallation : `npm uninstall -g phenixrouter` (vos données restent dans `~/.phenixrouter`).
 
 **Option 3 — Docker** : `cp .env.example .env && docker compose up -d`

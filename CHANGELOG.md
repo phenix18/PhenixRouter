@@ -2,6 +2,12 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.5.2 — Port automatique et modèles de codage gratuits
+- **Bascule de port** : 20128 occupé → 20129… (jusqu'à +9) ; port réel mémorisé (`info`, `status`, `setup` le retrouvent) ; `--strict-port` pour l'interdire.
+- **Détection des modèles gratuits pour le codage** : famille (claude, gpt, glm, qwen, deepseek, kimi, gemini, llama, mistral…) et score d'aptitude (appel d'outils, code, raisonnement, contexte) ; `phenixrouter coding`, `models --free --code`, filtre « Codage » dans le tableau de bord.
+- OpenRouter : GLM‑4.5‑Air, Kimi‑K2 et DeepSeek‑V3.1 gratuits ajoutés (la découverte dynamique complète la liste dès qu'une clé est connectée).
+- 118 tests.
+
 ## 1.5.1 — Identifiants et mise en route fiables
 - **Identifiants conservés** : copie du mot de passe et de la clé `default` dans `credentials.txt` (0600) ; chaque démarrage indique où les retrouver ou comment les réinitialiser.
 - **Base URL toujours affichées** (OpenAI `/v1` et Claude Code sans `/v1`, adresses du réseau local avec `--host 0.0.0.0`).
