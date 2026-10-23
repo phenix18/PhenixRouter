@@ -2,6 +2,11 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.5.4 — Diagnostic des outils
+- **`phenixrouter check`** : lit la configuration réelle de Claude Code / OpenCode / Droid et vérifie adresse (port) et clé ; indique le correctif exact.
+- Refus de clé (401) journalisés avec le préfixe de la clé et la route (vue « Journal »), messages d'erreur plus explicites.
+- Si le port change (bascule automatique), rappel de mettre à jour les outils.
+
 ## 1.5.3 — Compatibilité Claude Code / OpenCode
 - Les noms de modèles propres aux outils (`claude-*`, `gpt-*`, `codex`…) sans clé du fournisseur d'origine sont redirigés vers l'alias équivalent (`phenix/fast|auto|smart|code`) au lieu d'une erreur 503.
 - `setup <outil> --write` sans `--key` crée une clé dédiée automatiquement ; `keys create` fonctionne serveur en marche (jeton local `admin.token`, loopback uniquement, refusé via tunnel).

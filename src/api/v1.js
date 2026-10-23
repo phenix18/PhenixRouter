@@ -43,11 +43,13 @@ export function authenticate(gw, req) {
     const rec = gw.verifyApiKey(token);
     if (rec) return { id: rec.id, name: rec.name, limit: rec.rateLimitPerMin ?? 0 };
     if (!s.requireApiKey) return { id: 'anonymous', name: 'anonymous', limit: 0 };
-    throw httpError(401, 'Clé API invalide', { type: 'authentication_error' });
+    gw.log({ level: 'warn', message: `clé API refusée (${token.slice(0, 8)}…) sur ${req.method} ${String(req.url).split('?')[0]} — vérifiez la clé de l’outil : phenixrouter check` });
+    throw httpError(401, 'Clé API invalide : copiez-en une valide (tableau de bord > Clés, ou « phenixrouter keys create <nom> »)', { type: 'authentication_error' });
   }
   const cookie = parseCookies(req).phx_session;
   if (cookie && gw.verifySession(cookie) && sameOrigin(req)) return { id: 'dashboard', name: 'dashboard', limit: 0 };
   if (!s.requireApiKey) return { id: 'anonymous', name: 'anonymous', limit: 0 };
+  gw.log({ level: 'warn', message: `requête sans clé API sur ${req.method} ${String(req.url).split('?')[0]} — renseignez la clé dans l’outil : phenixrouter check` });
   throw httpError(401, 'Clé API manquante (en-tête Authorization: Bearer … ou x-api-key)', { type: 'authentication_error' });
 }
 

@@ -55,6 +55,8 @@ phenixrouter setup codex                        # bloc config.toml pour Codex
 phenixrouter setup claude --write      # crée une clé dédiée et configure ~/.claude/settings.json
 phenixrouter setup opencode --write    # idem pour ~/.config/opencode/opencode.json
 ```
+Un outil ne se connecte pas ? `phenixrouter check` teste l'adresse et la clé réellement écrites dans sa configuration.
+
 Clé perdue ? `phenixrouter keys create <nom>` fonctionne aussi serveur en marche. Les noms de modèles propres aux outils (`claude-3-5-haiku`, `gpt-5-codex`…) sont redirigés vers `phenix/fast`, `phenix/code`… quand vous n'avez pas la clé du fournisseur d'origine.
 
 **Port** : l'URL de base par défaut est `http://localhost:20128` ; si le port est occupé, PhenixRouter prend automatiquement le suivant (20129, 20130…) et l'indique (`--strict-port` pour refuser, `--port N` pour choisir). `phenixrouter info` affiche toujours l'adresse réelle.

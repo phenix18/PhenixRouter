@@ -35,6 +35,7 @@ ${bold('Utilisation')}
   phenixrouter providers             Liste les fournisseurs (gratuits et payants) pris en charge
   phenixrouter info                  Affiche les adresses (Base URL), les clés et comment se connecter
   phenixrouter connect <fournisseur> <clé>   Ajoute une clé fournisseur sans le tableau de bord (ex. groq gsk_…)
+  phenixrouter check                 Vérifie que Claude Code / OpenCode / Droid pointent vers la bonne adresse avec une clé valide
   phenixrouter test [modèle]         Envoie une vraie requête de test et explique l'échec éventuel
   phenixrouter list                  Liste vos connexions (clés) et leur état
   phenixrouter models [--all] [--free] [--code]   Liste les modèles détectés (gratuit / payant, prix indicatif)
@@ -131,7 +132,7 @@ async function cmdStart(flags) {
   const host = flags.host ?? process.env.HOST ?? '127.0.0.1';
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Port invalide');
   const app = await start({ port, host, dataDir: flags.dataDir, portFallback: flags.strictPort || port === 0 ? 0 : 9 });
-  if (app.port !== port && port !== 0) console.log(`\n  ${orange('ℹ')} Le port ${port} est occupé : ${BRAND.name} utilise le port ${bold(String(app.port))}.`);
+  if (app.port !== port && port !== 0) console.log(`\n  ${orange('ℹ')} Le port ${port} est occupé : ${BRAND.name} utilise le port ${bold(String(app.port))}.\n    ${dim('Outils déjà configurés ? Mettez-les à jour : phenixrouter setup claude --write (idem opencode) · vérification : phenixrouter check')}`);
 
   console.log(`\n${orange(bold(`  🔥 ${BRAND.name}`))} ${dim(`v${VERSION}`)}  ${dim('—')}  ${BRAND.tagline}`);
   console.log(dim(`  ${BRAND.copyright}\n`));
@@ -228,6 +229,39 @@ async function cmdModels(flags) {
     for (const m of list) console.log(`  ${m.id.padEnd(60)} ${fmtPrice(m).padEnd(24)} ${dim(m.tags.join(','))}`);
     if (!list.length) console.log(dim('  Aucun modèle prêt : ajoutez une clé, ou utilisez --all pour tout voir.'));
   } finally { gw.close(); }
+}
+
+/** Vérifie la configuration réelle des outils (Claude Code, OpenCode, Cline, Droid) : adresse joignable ? clé acceptée ? */
+async function cmdCheck(flags) {
+  const port = portOf(flags);
+  const running = await serverRunning(port);
+  console.log(`\n${bold('Serveur')} : ${running ? green(`en ligne sur le port ${port}`) : red(`arrêté (port ${port}) — lancez : phenixrouter start`)}\n`);
+  const found = [];
+  const readJ = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return null; } };
+  const files = Object.fromEntries(toolPaths().map((t) => [t.id, t.file]));
+  const cc = readJ(files.claude)?.env;
+  if (cc?.ANTHROPIC_BASE_URL) found.push({ tool: 'Claude Code', url: cc.ANTHROPIC_BASE_URL.replace(/\/v1\/?$/, ''), key: cc.ANTHROPIC_AUTH_TOKEN ?? cc.ANTHROPIC_API_KEY });
+  const oc = readJ(files.opencode)?.provider?.phenix?.options;
+  if (oc?.baseURL) found.push({ tool: 'OpenCode', url: oc.baseURL.replace(/\/v1\/?$/, ''), key: oc.apiKey });
+  const dr = readJ(files.droid)?.customModels?.find((m) => String(m.id).startsWith('custom:'));
+  if (dr?.baseUrl) found.push({ tool: 'Droid', url: dr.baseUrl.replace(/\/v1\/?$/, ''), key: dr.apiKey });
+  if (!found.length) { console.log(dim('  Aucun outil configuré par PhenixRouter. Faites : phenixrouter setup claude --write  (ou opencode)\n')); return; }
+  let bad = 0;
+  for (const f of found) {
+    let verdict;
+    try {
+      const res = await fetch(`${f.url}/v1/models`, { headers: { authorization: `Bearer ${f.key ?? ''}` }, signal: AbortSignal.timeout(3000) });
+      if (res.ok) verdict = green('✓ adresse et clé valides');
+      else if (res.status === 401) { verdict = red('✗ clé refusée (supprimée ou fausse) → phenixrouter setup <outil> --write'); bad += 1; }
+      else { verdict = red(`✗ HTTP ${res.status}`); bad += 1; }
+    } catch (e) {
+      bad += 1;
+      verdict = red(`✗ adresse injoignable (${e?.cause?.code ?? e.message}) → le serveur n'écoute pas sur ${f.url} ; relancez « phenixrouter setup <outil> --write » pour mettre à jour le port`);
+    }
+    console.log(`  ${bold(f.tool.padEnd(12))} ${f.url}  ${f.key ? dim(`${f.key.slice(0, 8)}…`) : red('(pas de clé)')}\n    ${verdict}`);
+  }
+  console.log(bad ? `\n  ${red('!')} ${bad} problème(s) à corriger.\n` : `\n  ${green('Tout est cohérent.')}\n`);
+  if (bad) process.exitCode = 1;
 }
 
 async function cmdCoding(flags) {
@@ -429,6 +463,7 @@ async function main() {
     case 'status': await cmdStatus(flags); break;
     case 'info': await cmdInfo(flags); break;
     case 'coding': await cmdCoding(flags); break;
+    case 'check': await cmdCheck(flags); break;
     case 'connect': await cmdConnect(flags, sub, arg); break;
     case 'test': await cmdTest(flags, sub); break;
     case 'usage': await cmdUsage(flags); break;
