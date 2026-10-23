@@ -2,6 +2,7 @@
 // Gateway : état central (stockage, secrets, connexions, clés API, combos, santé, grand livre).
 import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import {
   JsonStore, Vault, ensureDir, sha256, randomToken, hashPassword, verifyPassword,
@@ -147,7 +148,15 @@ export class Gateway extends EventEmitter {
       if (!this.db.apiKeys.length) apiKey = this.createApiKey('default').key;
       this.store.flush();
     }
-    return { firstRun: !!password, password, apiKey, passwordFromEnv: !!process.env.PHENIX_PASSWORD };
+    let credentialsFile = null;
+    if (password) {
+      // Les identifiants ne sont plus perdus : copie lisible uniquement par vous (0600). Supprimez le fichier une fois notés.
+      try {
+        credentialsFile = join(this.dir, 'credentials.txt');
+        writeFileSync(credentialsFile, `PhenixRouter — identifiants du premier lancement (supprimez ce fichier après les avoir notés)\nMot de passe du tableau de bord : ${password}\n${apiKey ? `Clé API « default » : ${apiKey}\n` : ''}`, { mode: 0o600 });
+      } catch { credentialsFile = null; }
+    }
+    return { firstRun: !!password, password, apiKey, passwordFromEnv: !!process.env.PHENIX_PASSWORD, credentialsFile };
   }
 
   checkPassword(password) {

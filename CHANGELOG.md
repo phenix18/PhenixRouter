@@ -2,6 +2,13 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.5.1 — Identifiants et mise en route fiables
+- **Identifiants conservés** : copie du mot de passe et de la clé `default` dans `credentials.txt` (0600) ; chaque démarrage indique où les retrouver ou comment les réinitialiser.
+- **Base URL toujours affichées** (OpenAI `/v1` et Claude Code sans `/v1`, adresses du réseau local avec `--host 0.0.0.0`).
+- Nouvelles commandes : `phenixrouter info`, `connect <fournisseur> <clé>`, `test` (requête réelle + diagnostic détaillé).
+- Message d'erreur explicite quand aucune clé fournisseur n'est configurée (Pollinations seul n'est qu'un secours).
+- 116 tests.
+
 ## 1.5.0 — Vente de tokens (module optionnel)
 - **Boutique de tokens prépayés** (désactivée par défaut, supprimable : réglage « Activé » ou suppression de `src/shop` + `public/shop`) : 1 M de tokens = 3 USD, packs et montant libre, multiplicateurs par modèle.
 - **Page web `/shop`** (mobile + PC, FR/EN, installable) : commande, paiement manuel ou **Binance Pay** (API marchande, statut revérifié par appel signé, jamais sur la foi du webhook), remise de la licence `phx-…`, recharge, compte (solde, usage, derniers appels) et exemples d'intégration PC/mobile.

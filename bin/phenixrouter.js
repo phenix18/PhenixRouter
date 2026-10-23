@@ -3,7 +3,7 @@
 // PhenixRouter — lanceur en ligne de commande.
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, networkInterfaces } from 'node:os';
 import { join, dirname } from 'node:path';
 import { importLegacyConfig } from '../src/core/legacy.js';
 import { toolPaths, applyTool, removeTool, manualSnippets, TOOLS } from '../src/core/clitools.js';
@@ -33,6 +33,9 @@ ${bold('Utilisation')}
   phenixrouter keys create <nom>     Crée une clé API (affichée une seule fois)
   phenixrouter keys revoke <id>      Supprime une clé API
   phenixrouter providers             Liste les fournisseurs (gratuits et payants) pris en charge
+  phenixrouter info                  Affiche les adresses (Base URL), les clés et comment se connecter
+  phenixrouter connect <fournisseur> <clé>   Ajoute une clé fournisseur sans le tableau de bord (ex. groq gsk_…)
+  phenixrouter test [modèle]         Envoie une vraie requête de test et explique l'échec éventuel
   phenixrouter list                  Liste vos connexions (clés) et leur état
   phenixrouter models [--all]        Liste les modèles détectés (gratuit / payant, prix indicatif)
   phenixrouter status                Vérifie si le serveur tourne (/health)
@@ -51,6 +54,7 @@ ${bold('Options de démarrage')}
       --host <addr>     Adresse d'écoute (défaut 127.0.0.1 ; 0.0.0.0 pour exposer)
       --data-dir <dir>  Dossier de données (défaut ~/.${BRAND.slug}, env PHENIX_DATA_DIR)
       --no-browser      N'ouvre pas le navigateur
+      --name/--base-url/--account-id   (connect) nom, URL de base, identifiant de compte du fournisseur
       --all             (models) inclut aussi les modèles dont le fournisseur n'est pas connecté
       --key <clé>       (setup) clé API cliente à écrire dans la configuration (sinon PHENIX_API_KEY)
       --write           (setup) écrit la configuration de l'outil (fusion non destructive, sauvegarde .bak)
@@ -81,6 +85,9 @@ function parseArgs(argv) {
     else if (a === '--write') out.flags.write = true;
     else if (a === '--password') out.flags.password = argv[++i];
     else if (a.startsWith('--password=')) out.flags.password = a.slice(11);
+    else if (a === '--name') out.flags.name = argv[++i];
+    else if (a === '--base-url') out.flags.baseUrl = argv[++i];
+    else if (a === '--account-id') out.flags.accountId = argv[++i];
     else if (a === '--key') out.flags.key = argv[++i];
     else if (a.startsWith('--key=')) out.flags.key = a.slice(6);
     else out._.push(a);
@@ -116,7 +123,9 @@ async function cmdStart(flags) {
   console.log(`\n${orange(bold(`  🔥 ${BRAND.name}`))} ${dim(`v${VERSION}`)}  ${dim('—')}  ${BRAND.tagline}`);
   console.log(dim(`  ${BRAND.copyright}\n`));
   console.log(`  ${bold('Tableau de bord')}   ${green(app.url)}`);
-  console.log(`  ${bold('Endpoint OpenAI')}   ${green(`${app.url}/v1`)}   ${dim('(Anthropic : /v1/messages · Responses : /v1/responses)')}`);
+  console.log(`  ${bold('Base URL (OpenAI)')}  ${green(`${app.url}/v1`)}   ${dim('— Cursor, Codex, SDK OpenAI, applications mobiles')}`);
+  console.log(`  ${bold('Base URL (Claude)')}  ${green(app.url)}   ${dim('— Claude Code : ANTHROPIC_BASE_URL (sans /v1)')}`);
+  if (host === '0.0.0.0' || host === '::') for (const ip of lanAddresses()) console.log(`  ${bold('Sur le réseau')}      ${green(`http://${ip}:${app.port}/v1`)}   ${dim('— téléphone / autre PC du même Wi‑Fi')}`);
   console.log(`  ${bold('Données')}           ${dim(resolveDataDir(flags.dataDir))}`);
   if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
     console.log(`\n  ${red('⚠')}  Le serveur écoute sur ${host} : protégez-le (mot de passe fort, proxy HTTPS, pare-feu).`);
@@ -125,10 +134,18 @@ async function cmdStart(flags) {
     console.log(`\n  ${bold('Premier lancement — notez ces identifiants (affichés une seule fois) :')}`);
     console.log(`  ${bold('Mot de passe du tableau de bord')} : ${orange(app.creds.password)}${app.creds.passwordFromEnv ? dim('  (PHENIX_PASSWORD)') : ''}`);
     if (app.creds.apiKey) console.log(`  ${bold('Clé API « default »')}             : ${orange(app.creds.apiKey)}`);
+    if (app.creds.credentialsFile) console.log(`  ${dim(`Copie conservée dans ${app.creds.credentialsFile} (supprimez-la après lecture).`)}`);
+  } else {
+    const f = join(resolveDataDir(flags.dataDir), 'credentials.txt');
+    if (existsSync(f)) console.log(`\n  ${bold('Identifiants')} : ${dim(f)}`);
+    else console.log(`\n  ${dim('Mot de passe oublié : phenixrouter reset-password · Nouvelle clé API : phenixrouter keys create <nom> · Aide : phenixrouter info')}`);
+  }
+  if (!app.gw.connections().some((c) => !c.implicit && c._key && c.enabled !== false) && !PROVIDERS.some((p) => p.keyEnv && process.env[p.keyEnv])) {
+    console.log(`\n  ${red('!')} Aucune clé fournisseur : ajoutez-en une gratuite (Groq, Gemini, OpenRouter…) dans « Fournisseurs » ou : ${bold('phenixrouter connect groq <clé>')}`);
   }
   const configured = PROVIDERS.filter((p) => p.keyEnv && process.env[p.keyEnv]).map((p) => p.name);
   if (configured.length) console.log(`\n  ${green('✓')} Clés détectées dans l'environnement : ${configured.join(', ')}`);
-  console.log(`\n  ${dim('Sans aucune clé, "phenix/auto" utilise Pollinations (sans clé). Ajoutez des clés gratuites dans « Fournisseurs ».')}`);
+  console.log(`\n  ${dim('Pollinations (sans clé) est un secours communautaire, parfois indisponible : pour une API fiable, ajoutez une clé gratuite (Groq, Gemini, OpenRouter…).')}`);
   console.log(`  ${dim('Ctrl+C pour arrêter.\n')}`);
 
   if (!flags.noBrowser && process.stdout.isTTY && !process.env.CI && !process.env.PHENIX_NO_BROWSER) openBrowser(app.url);
@@ -176,6 +193,63 @@ async function cmdModels(flags) {
     console.log(`${list.length} modèle(s)${flags.all ? '' : ' prêt(s)'} :`);
     for (const m of list) console.log(`  ${m.id.padEnd(60)} ${fmtPrice(m).padEnd(24)} ${dim(m.tags.join(','))}`);
     if (!list.length) console.log(dim('  Aucun modèle prêt : ajoutez une clé, ou utilisez --all pour tout voir.'));
+  } finally { gw.close(); }
+}
+
+function lanAddresses() {
+  return Object.values(networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
+}
+
+async function cmdInfo(flags) {
+  const port = Number(flags.port ?? process.env.PORT ?? BRAND.defaultPort);
+  const gw = new Gateway({ dataDir: flags.dataDir });
+  try {
+    const base = `http://127.0.0.1:${port}`;
+    const running = await serverRunning(port);
+    console.log(`\n${bold(BRAND.name)} ${dim(`v${VERSION}`)}   ${running ? green('● en ligne') : red('○ arrêté — lancez : phenixrouter start')}\n`);
+    console.log(`  ${bold('Tableau de bord')}        ${green(base)}`);
+    console.log(`  ${bold('Base URL OpenAI')}        ${green(`${base}/v1`)}   ${dim('(Cursor, Codex, SDK, apps mobiles)')}`);
+    console.log(`  ${bold('Base URL Claude Code')}   ${green(base)}   ${dim('(ANTHROPIC_BASE_URL, sans /v1)')}`);
+    for (const ip of lanAddresses()) console.log(`  ${bold('Réseau local')}           ${dim(`http://${ip}:${port}/v1  (démarrez avec --host 0.0.0.0)`)}`);
+    const keys = gw.listApiKeys().filter((k) => !k.sold);
+    console.log(`\n  ${bold('Clés API clientes')} ${dim('(la valeur complète n’est affichée qu’à la création)')}`);
+    if (!keys.length) console.log('    aucune — créez-en une : phenixrouter keys create <nom>');
+    for (const k of keys) console.log(`    ${k.prefix}…  ${k.enabled ? green('actif') : red('désactivé')}  ${k.name}`);
+    const f = join(resolveDataDir(flags.dataDir), 'credentials.txt');
+    console.log(`\n  ${bold('Identifiants du premier lancement')} : ${existsSync(f) ? f : dim('fichier supprimé — phenixrouter reset-password / keys create')}`);
+    const conns = gw.connections().filter((x) => !x.implicit && x._key && x.enabled !== false);
+    console.log(`  ${bold('Clés fournisseurs')} : ${conns.length ? conns.map((x) => x.name).join(', ') : red('aucune')} ${conns.length ? '' : dim('→ phenixrouter connect groq <clé>')}`);
+    console.log(`\n  ${dim('Tester : phenixrouter test    ·    Diagnostic : phenixrouter doctor')}\n`);
+  } finally { gw.close(); }
+}
+
+async function cmdConnect(flags, provider, key) {
+  const { getProvider } = await import('../src/providers/registry.js');
+  const p = getProvider(provider);
+  if (!p) throw new Error(`Fournisseur inconnu : « ${provider ?? ''} » (voir : phenixrouter providers)`);
+  if (!key && !p.keyless) throw new Error(`Utilisation : phenixrouter connect ${p.id} <clé API>`);
+  await mutating(flags, async (gw) => {
+    gw.addConnection({ provider: p.id, name: flags.name, apiKey: key, baseUrl: flags.baseUrl, extra: flags.accountId ? { accountId: flags.accountId } : undefined });
+    gw.store.flush();
+    console.log(`${green('✓')} ${p.name} connecté. ${dim('Vérifiez avec : phenixrouter test')}`);
+  });
+}
+
+async function cmdTest(flags, model) {
+  const { runChat } = await import('../src/core/chat.js');
+  const gw = new Gateway({ dataDir: flags.dataDir });
+  try {
+    await gw.catalog.refresh({ force: true }).catch(() => {});
+    const target = model || 'phenix/auto';
+    process.stdout.write(`Test « ${target} » … `);
+    const t0 = Date.now();
+    const out = await runChat(gw, { model: target, messages: [{ role: 'user', content: 'Réponds uniquement : OK' }], max_tokens: 16 }, { client: 'cli-test', route: 'chat', requestedModel: target });
+    const j = out.json ?? out;
+    console.log(`${green('✓ opérationnel')} ${dim(`(${Date.now() - t0} ms, via ${out.served ?? j.model ?? '?'})`)}\n  Réponse : ${String(j.choices?.[0]?.message?.content ?? '').slice(0, 80)}`);
+  } catch (e) {
+    console.log(`${red('✗ échec')}\n  ${e.message}`);
+    for (const a of e.attempts ?? []) console.log(dim(`   - ${a.provider}${a.model ? `/${a.model}` : ''} : ${a.skipped ? `ignoré (${a.skipped})` : `${a.status ?? a.kind} ${a.message ?? ''}`}`));
+    process.exitCode = 1;
   } finally { gw.close(); }
 }
 
@@ -291,6 +365,9 @@ async function main() {
     case 'list': await cmdList(flags); break;
     case 'models': await cmdModels(flags); break;
     case 'status': await cmdStatus(flags); break;
+    case 'info': await cmdInfo(flags); break;
+    case 'connect': await cmdConnect(flags, sub, arg); break;
+    case 'test': await cmdTest(flags, sub); break;
     case 'usage': await cmdUsage(flags); break;
     case 'import': await cmdImport(flags, sub); break;
     case 'setup': cmdSetup(flags, sub); break;

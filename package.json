@@ -1,6 +1,6 @@
 {
   "name": "phenixrouter",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "PhenixRouter — passerelle IA locale : une seule API compatible OpenAI/Anthropic vers des modèles gratuits, avec découverte dynamique, bascule automatique et comptabilité REA.",
   "type": "module",
   "main": "src/server.js",

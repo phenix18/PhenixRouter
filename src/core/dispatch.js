@@ -256,9 +256,11 @@ export async function callUpstream(gw, targets, spec) {
     throw new RouterError(lastClient.status, lastClient.message, 'upstream_error', attempts);
   }
   const summary = real.map((a) => `${a.provider}/${a.model}: ${a.status ?? a.kind}${a.message ? ` (${a.message.slice(0, 80)})` : ''}`).join(' ; ');
+  const keyed = gw.connections().some((c) => !c.implicit && c._key && c.enabled !== false);
+  const hint = keyed ? '' : ' — Aucune clé fournisseur n’est configurée : ajoutez-en une gratuite (Groq, Gemini, OpenRouter, Cerebras…) dans le tableau de bord > Fournisseurs, ou via `phenixrouter connect groq <clé>`.';
   throw new RouterError(
     limited ? 429 : 502,
-    `Tous les fournisseurs ont échoué après ${real.length} tentative(s) — ${summary}`,
+    `Tous les fournisseurs ont échoué après ${real.length} tentative(s) — ${summary}${hint}`,
     limited ? 'rate_limit_exceeded' : 'upstream_unavailable',
     attempts,
   );

@@ -34,7 +34,7 @@ git clone <ce dépôt> && cd PhenixRouter
 node bin/phenixrouter.js start        # ou : npm start · start.sh · start.bat
 ```
 
-Au premier lancement, le terminal affiche **une seule fois** le mot de passe du tableau de bord et une clé API `phx-…`.
+Au premier lancement, le terminal affiche le mot de passe du tableau de bord et une clé API `phx-…`, **et en garde une copie** dans `~/.phenixrouter/credentials.txt` (lecture réservée à vous ; supprimez-la après lecture). Perdu ? `phenixrouter info` (adresses/Base URL), `phenixrouter reset-password`, `phenixrouter keys create <nom>`.
 Ouvrez <http://127.0.0.1:20128>, ajoutez vos clés dans **Fournisseurs** (ou via variables d'environnement, voir `.env.example`).
 
 **Option 2 bis — installation en terminal (Node.js 20.9+)** :
@@ -42,6 +42,10 @@ Ouvrez <http://127.0.0.1:20128>, ajoutez vos clés dans **Fournisseurs** (ou via
 ```bash
 npm install -g github:phenix18/PhenixRouter     # installe la commande « phenixrouter »
 phenixrouter start                              # ou : npx github:phenix18/PhenixRouter start
+phenixrouter doctor                             # diagnostic
+phenixrouter connect groq gsk_VOTRE_CLE         # ajoute une clé fournisseur gratuite (sans tableau de bord)
+phenixrouter test                               # vraie requête de test + explication si échec
+phenixrouter info                               # Base URL à coller dans vos outils
 phenixrouter setup claude --write               # configure Claude Code automatiquement
 phenixrouter setup codex                        # bloc config.toml pour Codex
 ```
