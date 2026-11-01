@@ -29,7 +29,7 @@ function runCleanups() {
   cleanups = [];
 }
 
-function loginScreen(message) {
+function loginScreen(message, hint) {
   runCleanups();
   const pw = h('input', { type: 'password', autocomplete: 'current-password', required: true, 'aria-label': t('password'), autofocus: true });
   const err = h('div', { class: 'notice err', hidden: !message }, message ?? '');
@@ -39,7 +39,7 @@ function loginScreen(message) {
     catch (x) { err.hidden = false; err.textContent = `${t('loginFailed')} : ${x.message}`; pw.select(); }
   } },
   h('label', { class: 'lbl' }, t('password'), pw), err,
-  h('button', { class: 'btn primary', type: 'submit' }, t('signIn')), h('p', { class: 'muted small' }, t('loginHint')));
+  h('button', { class: 'btn primary', type: 'submit' }, t('signIn')), h('p', { class: 'muted small' }, hint ? `${t('loginDefault')} : ${hint}` : t('loginHint')));
   root.replaceChildren(h('main', { class: 'login' }, h('div', { class: 'card' },
     h('div', { class: 'brand' }, logoSvg(), h('span', null, t('appName'))), h('p', { class: 'muted center' }, t('tagline')), form,
     h('p', { class: 'muted small center' }, t('copyright')))));
@@ -95,8 +95,9 @@ async function start() {
   let session;
   try { session = await api('/api/session'); } catch (e) { root.replaceChildren(h('div', { class: 'notice err' }, e.message)); return; }
   document.documentElement.lang = lang();
-  if (!session.authenticated) { loginScreen(); return; }
+  if (!session.authenticated) { loginScreen(undefined, session.defaultPassword ? '123456' : null); return; }
   shell(session);
+  if (session.defaultPassword) root.querySelector('.main')?.prepend(h('div', { class: 'notice warn' }, t('changeDefault')));
   await renderRoute(session);
   window.onhashchange = () => renderRoute(session);
 }

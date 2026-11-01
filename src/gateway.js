@@ -140,12 +140,15 @@ export class Gateway extends EventEmitter {
 
   /* ───────── Authentification du tableau de bord ───────── */
 
-  ensureCredentials() {
+  ensureCredentials({ local = false } = {}) {
     let password = null;
     let apiKey = null;
     if (!this.db.auth.passwordHash) {
-      password = process.env.PHENIX_PASSWORD || randomToken(9);
+      // Écoute locale uniquement : mot de passe simple « 123456 » (connexion refusée depuis Internet tant qu'il n'est pas changé).
+      const useDefault = local && !process.env.PHENIX_PASSWORD;
+      password = process.env.PHENIX_PASSWORD || (useDefault ? '123456' : randomToken(9));
       this.db.auth.passwordHash = hashPassword(password);
+      this.db.auth.isDefault = useDefault;
       if (!this.db.apiKeys.length) apiKey = this.createApiKey('default').key;
       this.store.flush();
     }
@@ -157,7 +160,7 @@ export class Gateway extends EventEmitter {
         writeFileSync(credentialsFile, `PhenixRouter — identifiants du premier lancement (supprimez ce fichier après les avoir notés)\nMot de passe du tableau de bord : ${password}\n${apiKey ? `Clé API « default » : ${apiKey}\n` : ''}`, { mode: 0o600 });
       } catch { credentialsFile = null; }
     }
-    return { firstRun: !!password, password, apiKey, passwordFromEnv: !!process.env.PHENIX_PASSWORD, credentialsFile };
+    return { firstRun: !!password, isDefault: !!this.db.auth.isDefault && !!password, password, apiKey, passwordFromEnv: !!process.env.PHENIX_PASSWORD, credentialsFile };
   }
 
   checkPassword(password) {
@@ -166,6 +169,7 @@ export class Gateway extends EventEmitter {
 
   setPassword(password) {
     this.db.auth.passwordHash = hashPassword(password);
+    this.db.auth.isDefault = false;
     this.store.flush();
   }
 

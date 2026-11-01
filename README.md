@@ -34,7 +34,7 @@ git clone <ce dépôt> && cd PhenixRouter
 node bin/phenixrouter.js start        # ou : npm start · start.sh · start.bat
 ```
 
-Au premier lancement, le terminal affiche le mot de passe du tableau de bord et une clé API `phx-…`, **et en garde une copie** dans `~/.phenixrouter/credentials.txt` (lecture réservée à vous ; supprimez-la après lecture). Perdu ? `phenixrouter info` (adresses/Base URL), `phenixrouter reset-password`, `phenixrouter keys create <nom>`.
+Au premier lancement en local (`127.0.0.1`), le mot de passe du tableau de bord est **`123456`** (connexion refusée depuis Internet/tunnel tant qu'il n'est pas changé ; à changer dans Réglages ; mot de passe aléatoire si vous exposez le serveur avec `--host 0.0.0.0`). Le terminal affiche le mot de passe du tableau de bord et une clé API `phx-…`, **et en garde une copie** dans `~/.phenixrouter/credentials.txt` (lecture réservée à vous ; supprimez-la après lecture). Perdu ? `phenixrouter info` (adresses/Base URL), `phenixrouter reset-password`, `phenixrouter keys create <nom>`.
 Ouvrez <http://127.0.0.1:20128>, ajoutez vos clés dans **Fournisseurs** (ou via variables d'environnement, voir `.env.example`).
 
 **Option 2 bis — installation en terminal (Node.js 20.9+)** :

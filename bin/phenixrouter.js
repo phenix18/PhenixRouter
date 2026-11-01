@@ -148,7 +148,7 @@ async function cmdStart(flags) {
   }
   if (app.creds.firstRun) {
     console.log(`\n  ${bold('Premier lancement — notez ces identifiants (affichés une seule fois) :')}`);
-    console.log(`  ${bold('Mot de passe du tableau de bord')} : ${orange(app.creds.password)}${app.creds.passwordFromEnv ? dim('  (PHENIX_PASSWORD)') : ''}`);
+    console.log(`  ${bold('Mot de passe du tableau de bord')} : ${orange(app.creds.password)}${app.creds.passwordFromEnv ? dim('  (PHENIX_PASSWORD)') : ''}${app.creds.isDefault ? dim('  (par défaut, local uniquement — changez-le dans Réglages)') : ''}`);
     if (app.creds.apiKey) console.log(`  ${bold('Clé API « default »')}             : ${orange(app.creds.apiKey)}`);
     if (app.creds.credentialsFile) console.log(`  ${dim(`Copie conservée dans ${app.creds.credentialsFile} (supprimez-la après lecture).`)}`);
   } else {

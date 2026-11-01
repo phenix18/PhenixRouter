@@ -2,6 +2,10 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.6.1 — Mot de passe local par défaut
+- Premier lancement en local : mot de passe `123456` affiché sur l'écran de connexion et au démarrage ; **refusé depuis Internet/tunnel** tant qu'il n'est pas changé, bandeau d'avertissement dans le tableau de bord ; mot de passe aléatoire si le serveur est exposé (`--host 0.0.0.0`) ; installations existantes inchangées.
+- 124 tests.
+
 ## 1.6.0 — Profil « gratuit + codage » pour Claude Code / OpenCode
 - Clés **gratuit seulement** (`freeOnly`) : aucun fournisseur payant, même demandé explicitement ; les alias ne retiennent que des modèles avec appel d'outils, classés par score de codage.
 - `phenix/code` : classement par aptitude au codage (outils, code, raisonnement, contexte).

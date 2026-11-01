@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Fido-labs —kcw—
 // Traductions fr / en (le français est la langue par défaut et de repli).
 const fr = {
+  loginDefault: 'Mot de passe par défaut (local)', changeDefault: 'Vous utilisez le mot de passe par défaut 123456 : changez-le dans Réglages avant d’exposer PhenixRouter (tunnel, réseau).',
   keys_freeOnly: 'Modèles gratuits seulement (codage)', keys_freeOnlyBadge: 'gratuit seul',
   models_coding: 'Codage (outils)',
   nav_sales: 'Ventes', sales_title: 'Vente de tokens', sales_sub: 'Boutique optionnelle : vendez des tokens prépayés (1 M = 3 $), suivez le solde et la marge. Désactivée par défaut — décochez pour tout couper.',
@@ -94,6 +95,7 @@ const fr = {
 };
 
 const en = {
+  loginDefault: 'Default password (local)', changeDefault: 'You are using the default password 123456: change it in Settings before exposing PhenixRouter (tunnel, network).',
   keys_freeOnly: 'Free models only (coding)', keys_freeOnlyBadge: 'free only',
   models_coding: 'Coding (tools)',
   nav_sales: 'Sales', sales_title: 'Token sales', sales_sub: 'Optional shop: sell prepaid tokens (1 M = $3), track balance and margin. Disabled by default — untick to switch it all off.',

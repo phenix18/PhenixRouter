@@ -80,3 +80,23 @@ test('clé d’outil « gratuit seulement » : aucun fournisseur payant, même d
   assert.equal(code.status, 200);
   assert.ok(!String((await code.json()).model).startsWith('deepseek/'));
 });
+
+test('mot de passe par défaut 123456 : local seulement, refusé via tunnel, aléatoire si exposé, levé au changement', async () => {
+  const login = (headers = {}, pw = '123456') => fetch(`${r.app.url}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ password: pw }) });
+  assert.equal((await login()).status, 200, 'local : 123456 accepté');
+  assert.equal((await login({ 'x-forwarded-for': '8.8.8.8' })).status, 403, 'via tunnel : refusé tant que le défaut est actif');
+  const s = await (await fetch(`${r.app.url}/api/session`)).json();
+  assert.equal(s.defaultPassword, true);
+  const hidden = await (await fetch(`${r.app.url}/api/session`, { headers: { 'x-forwarded-for': '8.8.8.8' } })).json();
+  assert.equal(hidden.defaultPassword, false, 'le défaut n’est jamais signalé depuis Internet');
+  const { Gateway } = await import('../src/gateway.js');
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const d = mkdtempSync(join(tmpdir(), 'phx-pw-'));
+  const gw2 = new Gateway({ dataDir: d });
+  const c = gw2.ensureCredentials({ local: false });
+  assert.notEqual(c.password, '123456', 'exposé (0.0.0.0) : mot de passe aléatoire');
+  gw2.close(); rmSync(d, { recursive: true, force: true });
+  r.gw.setPassword('NouveauMotDePasse1');
+  assert.equal((await login({ 'x-forwarded-for': '8.8.8.8' }, 'NouveauMotDePasse1')).status, 200, 'après changement : accessible normalement');
+});

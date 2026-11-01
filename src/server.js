@@ -114,7 +114,7 @@ export function createApp(gw) {
  */
 export async function start({ port, host = '127.0.0.1', dataDir, portFallback = 0 } = {}) {
   const gw = new Gateway({ dataDir });
-  const creds = gw.ensureCredentials();
+  const creds = gw.ensureCredentials({ local: ['127.0.0.1', 'localhost', '::1'].includes(host) });
   const server = createApp(gw);
   server.requestTimeout = 0; // les flux SSE peuvent durer
   server.headersTimeout = 30_000;

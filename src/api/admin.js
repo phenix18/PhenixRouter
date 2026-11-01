@@ -84,6 +84,10 @@ function overview(gw) {
   };
 }
 
+function isLocalDirect(req) {
+  return /^(::1|127\.|::ffff:127\.)/.test(req.socket?.remoteAddress ?? '') && !viaProxy(req);
+}
+
 /** Appel de la CLI locale : jeton du fichier admin.token, connexion directe depuis le bouclage, jamais via un tunnel. */
 function localAdmin(gw, req) {
   const tok = req.headers['x-phenix-local-admin'];
@@ -123,6 +127,7 @@ export async function handleAdmin(gw, req, res, url) {
       const lim = gw.loginLimiter.hit(`login:${clientIp(req)}`, 8);
       if (!lim.ok) throw httpError(429, `Trop de tentatives. Réessayez dans ${lim.retryAfterSec}s.`);
       const { password } = await readJson(req, 4096);
+      if (gw.db.auth.isDefault && !isLocalDirect(req)) throw httpError(403, 'Mot de passe par défaut : connectez-vous depuis cette machine (localhost) et changez-le (Réglages)');
       if (!password || !gw.checkPassword(String(password))) throw httpError(401, 'Mot de passe incorrect');
       sendJson(res, 200, { ok: true }, { 'set-cookie': cookie(req, gw.issueSession(), 7 * 24 * 3600) });
       return;
@@ -134,6 +139,7 @@ export async function handleAdmin(gw, req, res, url) {
     if (route === 'GET /api/session') {
       sendJson(res, 200, {
         authenticated: gw.verifySession(parseCookies(req).phx_session),
+        defaultPassword: !!gw.db.auth.isDefault && isLocalDirect(req),
         brand: BRAND.name, version: VERSION, language: gw.settings().language,
       });
       return;
