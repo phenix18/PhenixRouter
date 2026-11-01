@@ -19,6 +19,7 @@ function quotaText(k) {
   if (k.dailyBudgetUsd) parts.push(`${(k.today?.costUsd ?? 0).toFixed(2)}/${k.dailyBudgetUsd} $ ${t('keys_perDay')}`);
   if (k.monthlyBudgetUsd) parts.push(`${k.monthlyBudgetUsd} $ ${t('keys_perMonth')}`);
   if (k.allowedModels?.length) parts.push(k.allowedModels.join(', '));
+  if (k.freeOnly) parts.push(t('keys_freeOnlyBadge'));
   if (k.expiresAt) parts.push(`${t('keys_expires')} ${new Date(k.expiresAt).toISOString().slice(0, 10)}`);
   return parts.length ? parts.join(' · ') : '∞';
 }
@@ -54,16 +55,17 @@ export async function render(root) {
     const mbud = h('input', { type: 'number', min: 0, step: '0.01', value: 0 });
     const models = h('input', { type: 'text', placeholder: 'groq/*, phenix/free' });
     const exp = h('input', { type: 'date' });
+    const freeOnly = h('input', { type: 'checkbox' });
     const ok = await modal(t('keys_new'), h('div', { class: 'form' }, h('label', { class: 'lbl' }, t('keys_name'), name), h('label', { class: 'lbl' }, t('keys_limit'), limit),
       h('details', null, h('summary', null, t('keys_quotas')),
         h('label', { class: 'lbl' }, t('keys_dreq'), dreq), h('label', { class: 'lbl' }, t('keys_dbud'), dbud), h('label', { class: 'lbl' }, t('keys_mbud'), mbud),
-        h('label', { class: 'lbl' }, t('keys_models'), models), h('label', { class: 'lbl' }, t('keys_expires'), exp))), { actions: [
+        h('label', { class: 'lbl' }, t('keys_models'), models), h('label', { class: 'lbl' }, t('keys_expires'), exp), h('label', { class: 'check' }, freeOnly, ' ', t('keys_freeOnly')))), { actions: [
       { label: t('cancel'), value: false },
       { label: t('add'), primary: true, value: true, onClick: async (close) => {
         try {
           const r = await api('/api/keys', { method: 'POST', body: {
             name: name.value.trim() || 'key', rateLimitPerMin: Number(limit.value) || 0, dailyRequests: Number(dreq.value) || 0, dailyBudgetUsd: Number(dbud.value) || 0,
-            monthlyBudgetUsd: Number(mbud.value) || 0, allowedModels: models.value, expiresAt: exp.value ? Date.parse(`${exp.value}T23:59:59Z`) : null,
+            monthlyBudgetUsd: Number(mbud.value) || 0, freeOnly: freeOnly.checked, allowedModels: models.value, expiresAt: exp.value ? Date.parse(`${exp.value}T23:59:59Z`) : null,
           } });
           close(false);
           drawTools(r.key);

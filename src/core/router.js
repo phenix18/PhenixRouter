@@ -56,14 +56,17 @@ function dedupe(targets) {
 }
 
 /** Chaîne dynamique : filtre par capacité, classe par qualité/latence, diversifie les fournisseurs. */
-function autoChain(gw, mode, { needTools = false, needVision = false } = {}) {
+function autoChain(gw, mode, { needTools = false, needVision = false, freeOnly = false } = {}) {
   const embedding = mode === 'embed';
   const costMode = gw.settings().costMode;
   // `free` force le gratuit ; sinon on exclut les fournisseurs payants bloqués (mode gratuit seul, budget épuisé).
   const ready = gw.catalog.list().filter((e) => e.status === 'ready'
-    && (mode === 'free' ? e.tier !== 'paid' : !(e.tier === 'paid' && gw.costBlock(e.provider))));
+    && (mode === 'free' || freeOnly ? e.tier !== 'paid' : !(e.tier === 'paid' && gw.costBlock(e.provider))));
   const has = (e, tag) => e.tags.includes(tag);
   let pool = ready.filter((e) => (embedding ? has(e, 'embedding') : has(e, 'chat')));
+  // Profil « codage » (clés d'outils, alias code) : uniquement des modèles capables d'appeler des outils.
+  const coding = mode === 'code' || freeOnly;
+  if (coding && !embedding) { const capable = pool.filter((e) => e.codingScore != null); if (capable.length) pool = capable; }
   const strict = (list) => list.filter((e) => (!needTools || has(e, 'tools')) && (!needVision || has(e, 'vision')));
   let filtered = strict(pool);
   if (!filtered.length) filtered = pool; // relâche si aucun modèle ne porte l'étiquette
@@ -86,6 +89,8 @@ function autoChain(gw, mode, { needTools = false, needVision = false } = {}) {
       || (has(b, 'small') ? 1 : 0) - (has(a, 'small') ? 1 : 0)
       || b.quality - a.quality
     ));
+  } else if (coding && !embedding) {
+    sorted = [...filtered].sort((a, b) => ((b.codingScore ?? 0) - latencyPenalty(b)) - ((a.codingScore ?? 0) - latencyPenalty(a)));
   } else {
     sorted = [...filtered].sort((a, b) => (b.quality - latencyPenalty(b)) - (a.quality - latencyPenalty(a)));
   }

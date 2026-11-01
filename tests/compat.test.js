@@ -55,7 +55,7 @@ test('configuration : Claude Code reçoit tous les alias de modèles ; OpenCode 
   TOOLS.opencode.apply(o, { base: 'http://127.0.0.1:20128', key: 'phx-k' });
   const oc = JSON.parse(readFileSync(o, 'utf8'));
   assert.equal(oc.provider.phenix.options.baseURL, 'http://127.0.0.1:20128/v1');
-  assert.ok(oc.provider.phenix.models.auto && oc.model === 'phenix/auto');
+  assert.ok(oc.provider.phenix.models.auto && oc.model === 'phenix/code');
 });
 
 test('jeton d’administration local : la CLI crée une clé serveur en marche ; refusé via tunnel ou sans jeton', async () => {
@@ -67,4 +67,16 @@ test('jeton d’administration local : la CLI crée une clé serveur en marche ;
   assert.equal(tunnel.status, 401);
   const bad = await fetch(`${r.app.url}/api/keys`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-phenix-local-admin': 'faux' }, body: JSON.stringify({ name: 'x' }) });
   assert.equal(bad.status, 401);
+});
+
+test('clé d’outil « gratuit seulement » : aucun fournisseur payant, même demandé explicitement ; alias code → modèles avec outils', async () => {
+  r.gw.addConnection({ provider: 'deepseek', name: 'ds-payant', apiKey: 'sk-x', baseUrl: up.url('deepseek') });
+  await r.gw.catalog.refresh({ force: true });
+  const free = r.gw.createApiKey('outil-gratuit', { freeOnly: true }).key;
+  const ask = (key, model) => r.api('/v1/chat/completions', { method: 'POST', key, body: { model, messages: [{ role: 'user', content: 'salut' }] } });
+  assert.notEqual((await ask(free, 'deepseek/deepseek-chat')).status, 200, 'payant refusé pour une clé gratuite');
+  assert.equal((await ask(r.apiKey, 'deepseek/deepseek-chat')).status, 200, 'la clé normale peut l’utiliser');
+  const code = await ask(free, 'phenix/code');
+  assert.equal(code.status, 200);
+  assert.ok(!String((await code.json()).model).startsWith('deepseek/'));
 });

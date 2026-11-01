@@ -57,6 +57,8 @@ phenixrouter setup opencode --write    # idem pour ~/.config/opencode/opencode.j
 ```
 Un outil ne se connecte pas ? `phenixrouter check` teste l'adresse et la clé réellement écrites dans sa configuration.
 
+Les clés créées par `setup` sont en mode **gratuit seulement + codage** : jamais de fournisseur payant, et `phenix/code` ne choisit que des modèles capables d'appeler des outils (`--paid` pour autoriser le payant).
+
 Clé perdue ? `phenixrouter keys create <nom>` fonctionne aussi serveur en marche. Les noms de modèles propres aux outils (`claude-3-5-haiku`, `gpt-5-codex`…) sont redirigés vers `phenix/fast`, `phenix/code`… quand vous n'avez pas la clé du fournisseur d'origine.
 
 **Port** : l'URL de base par défaut est `http://localhost:20128` ; si le port est occupé, PhenixRouter prend automatiquement le suivant (20129, 20130…) et l'indique (`--strict-port` pour refuser, `--port N` pour choisir). `phenixrouter info` affiche toujours l'adresse réelle.

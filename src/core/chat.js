@@ -33,7 +33,7 @@ export async function runChat(gw, body, ctx) {
   const stream = !!body.stream;
   const needTools = !!body.tools?.length;
   const needVision = hasImages(body.messages);
-  const resolved = resolveTargets(gw, body.model, { needTools, needVision });
+  const resolved = resolveTargets(gw, body.model, { needTools, needVision, freeOnly: !!gw.clientPolicy(ctx.client)?.freeOnly });
   const tokensInEst = estimateTokens(body.messages) + estimateTokens(body.tools);
   const t0 = Date.now();
 

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Fido-labs —kcw—
 // Traductions fr / en (le français est la langue par défaut et de repli).
 const fr = {
+  keys_freeOnly: 'Modèles gratuits seulement (codage)', keys_freeOnlyBadge: 'gratuit seul',
   models_coding: 'Codage (outils)',
   nav_sales: 'Ventes', sales_title: 'Vente de tokens', sales_sub: 'Boutique optionnelle : vendez des tokens prépayés (1 M = 3 $), suivez le solde et la marge. Désactivée par défaut — décochez pour tout couper.',
   sales_revenue: 'Encaissé', sales_licenses: 'licences', sales_sold: 'Tokens vendus', sales_consumed: 'consommés', sales_outstanding: 'Crédit restant dû', sales_cost: 'Coût fournisseurs', sales_margin: 'Marge estimée', sales_ledger: 'Livre des ventes', sales_ledgerSub: 'chaîne + dualité paiement/crédit',
@@ -93,6 +94,7 @@ const fr = {
 };
 
 const en = {
+  keys_freeOnly: 'Free models only (coding)', keys_freeOnlyBadge: 'free only',
   models_coding: 'Coding (tools)',
   nav_sales: 'Sales', sales_title: 'Token sales', sales_sub: 'Optional shop: sell prepaid tokens (1 M = $3), track balance and margin. Disabled by default — untick to switch it all off.',
   sales_revenue: 'Revenue', sales_licenses: 'licenses', sales_sold: 'Tokens sold', sales_consumed: 'consumed', sales_outstanding: 'Outstanding credit', sales_cost: 'Upstream cost', sales_margin: 'Estimated margin', sales_ledger: 'Sales ledger', sales_ledgerSub: 'chain + payment/credit duality',

@@ -2,6 +2,12 @@
 
 Copyright © 2026 Fido-labs —kcw—
 
+## 1.6.0 — Profil « gratuit + codage » pour Claude Code / OpenCode
+- Clés **gratuit seulement** (`freeOnly`) : aucun fournisseur payant, même demandé explicitement ; les alias ne retiennent que des modèles avec appel d'outils, classés par score de codage.
+- `phenix/code` : classement par aptitude au codage (outils, code, raisonnement, contexte).
+- `setup claude|opencode --write` : clé dédiée gratuit-seul et modèle par défaut `phenix/code` (`--paid` pour lever la restriction) ; case « gratuit seulement » dans le tableau de bord.
+- 123 tests.
+
 ## 1.5.4 — Diagnostic des outils
 - **`phenixrouter check`** : lit la configuration réelle de Claude Code / OpenCode / Droid et vérifie adresse (port) et clé ; indique le correctif exact.
 - Refus de clé (401) journalisés avec le préfixe de la clé et la route (vue « Journal »), messages d'erreur plus explicites.

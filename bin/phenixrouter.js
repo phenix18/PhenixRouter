@@ -86,6 +86,8 @@ function parseArgs(argv) {
     else if (a === '--no-browser') out.flags.noBrowser = true;
     else if (a === '--strict-port') out.flags.strictPort = true;
     else if (a === '--free') out.flags.free = true;
+    else if (a === '--free-only') out.flags.freeOnly = true;
+    else if (a === '--paid') out.flags.paid = true;
     else if (a === '--code') out.flags.code = true;
     else if (a === '--all') out.flags.all = true;
     else if (a === '--write') out.flags.write = true;
@@ -187,10 +189,11 @@ async function viaServer(flags, method, path, body) {
 
 /** Crée une clé API cliente : via le serveur en marche, sinon directement dans la base. */
 async function createClientKey(flags, name) {
-  const live = await viaServer(flags, 'POST', '/api/keys', { name }).catch(() => null);
+  const opts = { name, freeOnly: !!flags.freeOnly };
+  const live = await viaServer(flags, 'POST', '/api/keys', opts).catch(() => null);
   if (live?.key) return live.key;
   let key;
-  await mutating(flags, (gw) => { ({ key } = gw.createApiKey(name)); gw.store.flush(); });
+  await mutating(flags, (gw) => { ({ key } = gw.createApiKey(name, opts)); gw.store.flush(); });
   return key;
 }
 
@@ -404,8 +407,8 @@ async function cmdSetup(flags, tool = 'claude') {
     let useKey = key;
     if (key === 'phx-VOTRE_CLE') {
       // Pas de clé fournie : on en crée une dédiée à cet outil (le serveur peut tourner), plus rien à copier à la main.
-      useKey = await createClientKey(flags, tool);
-      console.log(`${green('✓')} Clé API « ${tool} » créée et écrite dans la configuration de l'outil.`);
+      useKey = await createClientKey({ ...flags, freeOnly: flags.paid ? false : true }, tool);
+      console.log(`${green('✓')} Clé API « ${tool} » créée (modèles GRATUITS pour le codage uniquement${flags.paid ? ' — option --paid : payants autorisés' : ''}) et écrite dans la configuration de l'outil.`);
     }
     const r = applyTool(tool, { base, key: useKey });
     console.log(`${green('✓')} Configuration écrite dans ${r.file}${r.backup ? dim(` (ancienne version : ${r.backup})`) : ''}`);

@@ -36,6 +36,7 @@ export function normQuota(o = {}) {
     monthlyBudgetUsd: clamp(Number(o.monthlyBudgetUsd) || 0, 0, 1e7),
     allowedModels: models.map((x) => String(x).trim()).filter((x) => /^[\w.:@/*+-]{1,120}$/.test(x)).slice(0, 50),
     expiresAt: Number.isFinite(exp) && exp > 0 ? exp : null,
+    freeOnly: o.freeOnly === true,
   };
 }
 
@@ -514,9 +515,10 @@ export class Gateway extends EventEmitter {
    */
   usableConnections(providerId, { peek = false, client } = {}) {
     // Une licence vendue (resaleOnly) n'utilise que les connexions marquées « resale » ; les autres clients n'y touchent pas.
-    const resaleOnly = !!this.clientPolicy(client)?.resaleOnly;
+    const pol = this.clientPolicy(client);
+    const resaleOnly = !!pol?.resaleOnly;
     const list = this.configuredConnections(providerId).filter((c) => (
-      (!resaleOnly || c.resale === true) && this.health.available(c.id) && (!c.dailyLimit || this.ledger.dailyCount(c.id) < c.dailyLimit)
+      (!resaleOnly || c.resale === true) && !(pol?.freeOnly && getProvider(providerId)?.tier === 'paid') && this.health.available(c.id) && (!c.dailyLimit || this.ledger.dailyCount(c.id) < c.dailyLimit)
     ));
     if (list.length <= 1) return list;
     // Priorité (1 = d'abord), puis round-robin au sein d'un même niveau de priorité.
